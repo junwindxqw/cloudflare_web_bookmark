@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>云书签 · Cloud Bookmark</title>
+    <meta name="description" content="部署在 Cloudflare Workers + D1 上的极简个人书签：自动抓取图标与描述，单页管理，一键部署。" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container topbar-inner">
+        <a class="brand" href="/" aria-label="云书签首页">
+          <svg class="brand-logo" viewBox="0 0 64 64" aria-hidden="true">
+            <defs>
+              <linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#4f6ef7" />
+                <stop offset="1" stop-color="#8a5cf6" />
+              </linearGradient>
+            </defs>
+            <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#brand-g)" />
+            <path d="M24 16h16a4 4 0 0 1 4 4v28l-12-8-12 8V20a4 4 0 0 1 4-4z" fill="#fff" />
+          </svg>
+          <span class="brand-name">云书签</span>
+          <span class="brand-sub">Cloud Bookmark</span>
+        </a>
+        <div class="topbar-actions">
+          <div class="searchbox">
+            <span class="search-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+            </span>
+            <input id="searchInput" type="search" placeholder="搜索标题 / 描述 / 域名…" autocomplete="off" />
+          </div>
+          <button id="addBtn" class="btn btn-primary" type="button">＋ 添加书签</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container">
+      <div class="status-bar">
+        <span id="stats" class="stats"></span>
+      </div>
+
+      <section id="loading" class="loading" aria-live="polite">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>正在加载书签…</p>
+      </section>
+
+      <section id="grid" class="grid" aria-label="书签列表"></section>
+
+      <section id="emptyState" class="empty hidden">
+        <svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true">
+          <defs>
+            <linearGradient id="empty-g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#4f6ef7" />
+              <stop offset="1" stop-color="#8a5cf6" />
+            </linearGradient>
+          </defs>
+          <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#empty-g)" opacity="0.14" />
+          <path d="M24 16h16a4 4 0 0 1 4 4v28l-12-8-12 8V20a4 4 0 0 1 4-4z" fill="url(#empty-g)" />
+        </svg>
+        <h2>还没有任何书签</h2>
+        <p>点击下方按钮，输入网址即可自动抓取图标与描述。</p>
+        <button id="emptyAddBtn" class="btn btn-primary" type="button">＋ 添加第一个书签</button>
+      </section>
+
+      <section id="noMatch" class="empty hidden">
+        <h2>没有匹配的书签</h2>
+        <p>换个关键词试试，或清空搜索条件。</p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        云书签 · 由
+        <a href="https://workers.cloudflare.com/" target="_blank" rel="noopener noreferrer">Cloudflare Workers</a> 与
+        <a href="https://developers.cloudflare.com/d1/" target="_blank" rel="noopener noreferrer">D1</a> 强力驱动
+      </div>
+    </footer>
+
+    <!-- 添加 / 编辑对话框 -->
+    <dialog id="bookmarkDialog" class="dialog">
+      <form id="bookmarkForm" novalidate>
+        <h3 class="dialog-title" id="dialogTitle">添加书签</h3>
+        <label class="field">
+          <span class="field-label">网址 <em>*</em></span>
+          <div class="field-row">
+            <input id="urlInput" name="url" type="text" inputmode="url" placeholder="例如：https://github.com" />
+            <button type="button" id="fetchBtn" class="btn btn-ghost" title="重新抓取图标、标题与描述">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg>
+              <span>获取信息</span>
+            </button>
+          </div>
+          <span class="field-hint">输入网址后会自动抓取图标、标题与描述，均可手动修改</span>
+        </label>
+        <div id="iconPreviewWrap" class="icon-preview hidden">
+          <span class="icon-preview-img" id="iconPreview"></span>
+          <span class="icon-preview-text" id="iconPreviewText"></span>
+        </div>
+        <label class="field">
+          <span class="field-label">标题</span>
+          <input id="titleInput" name="title" type="text" maxlength="200" placeholder="留空则自动抓取" />
+        </label>
+        <label class="field">
+          <span class="field-label">描述</span>
+          <textarea id="descInput" name="description" rows="3" maxlength="500" placeholder="留空则自动抓取网站描述"></textarea>
+        </label>
+        <p class="form-error hidden" id="formError" role="alert"></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-ghost" id="cancelBtn">取消</button>
+          <button type="submit" class="btn btn-primary" id="saveBtn">保存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- 删除确认对话框 -->
+    <dialog id="confirmDialog" class="dialog dialog-sm">
+      <h3 class="dialog-title">删除书签</h3>
+      <p class="confirm-text" id="confirmText"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="confirmCancel">取消</button>
+        <button type="button" class="btn btn-danger" id="confirmOk">删除</button>
+      </div>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

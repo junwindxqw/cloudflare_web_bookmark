@@ -1,0 +1,19 @@
+{
+  "name": "cloud-bookmark",
+  "version": "1.0.0",
+  "description": "一个跑在 Cloudflare 免费服务上的极简个人书签站：自动抓取图标与描述，单页管理，一键部署。",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "setup": "wrangler deploy",
+    "deploy": "wrangler deploy",
+    "check": "node --check src/index.js && node --check public/app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

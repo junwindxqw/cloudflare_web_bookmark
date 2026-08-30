@@ -1,0 +1,28 @@
+{
+  // Cloudflare Workers 配置（https://developers.cloudflare.com/workers/wrangler/configuration/）
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cloud-bookmark",
+  "main": "src/index.js",
+  "compatibility_date": "2025-03-01",
+  "assets": {
+    // 前端静态资源目录：命中的请求直接由静态资源层返回，未命中的（/api/*）进入 Worker
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "cloud-bookmark-db"
+      // 注意：这里刻意不写 database_id。
+      // - 首次 `wrangler deploy` 时，wrangler 会检测到该绑定缺少 id，
+      //   提示自动创建 D1 数据库，并把生成的 id 回写到本文件；
+      // - 使用「Deploy to Cloudflare」按钮部署时同样会自动创建并绑定；
+      // - 本地 `wrangler dev` 则直接使用本地模拟的 D1，无需任何配置。
+      // 书签表结构由 Worker 在首次处理请求时自动创建，无需执行迁移。
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

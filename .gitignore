@@ -1,0 +1,18 @@
+# 依赖
+node_modules/
+
+# wrangler 本地状态（本地 D1 数据、缓存等）
+.wrangler/
+
+# 本地环境变量 / 密钥
+.dev.vars
+*.local
+
+# Mimosa 安全扫描工具的本地状态
+.mimosa/
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
