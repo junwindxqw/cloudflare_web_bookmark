@@ -4,80 +4,192 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>云书签 · Cloud Bookmark</title>
-    <meta name="description" content="部署在 Cloudflare Workers + D1 上的极简个人书签：自动抓取图标与描述，单页管理，一键部署。" />
+    <meta name="description" content="部署在 Cloudflare Workers + D1 上的多用户个人书签：邮箱验证码注册登录，自动抓取图标与描述。" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
-    <header class="topbar">
-      <div class="container topbar-inner">
-        <a class="brand" href="/" aria-label="云书签首页">
+    <!-- 启动检查登录态 -->
+    <div id="boot" class="boot">正在加载…</div>
+
+    <!-- 未登录：认证页 -->
+    <section id="authView" class="auth-view hidden">
+      <div class="auth-card">
+        <div class="auth-brand">
           <svg class="brand-logo" viewBox="0 0 64 64" aria-hidden="true">
             <defs>
-              <linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1">
+              <linearGradient id="auth-g" x1="0" y1="0" x2="1" y2="1">
                 <stop offset="0" stop-color="#4f6ef7" />
                 <stop offset="1" stop-color="#8a5cf6" />
               </linearGradient>
             </defs>
-            <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#brand-g)" />
+            <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#auth-g)" />
             <path d="M24 16h16a4 4 0 0 1 4 4v28l-12-8-12 8V20a4 4 0 0 1 4-4z" fill="#fff" />
           </svg>
           <span class="brand-name">云书签</span>
           <span class="brand-sub">Cloud Bookmark</span>
-        </a>
-        <div class="topbar-actions">
-          <div class="searchbox">
-            <span class="search-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
-            </span>
-            <input id="searchInput" type="search" placeholder="搜索标题 / 描述 / 域名…" autocomplete="off" />
-          </div>
-          <button id="addBtn" class="btn btn-primary" type="button">＋ 添加书签</button>
         </div>
+
+        <div class="auth-tabs">
+          <button type="button" class="auth-tab active" id="tabLogin" data-tab="login">登录</button>
+          <button type="button" class="auth-tab" id="tabRegister" data-tab="register">注册</button>
+        </div>
+
+        <!-- 登录 -->
+        <form id="loginForm" novalidate>
+          <label class="field">
+            <span class="field-label">邮箱</span>
+            <input id="loginEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+          </label>
+          <label class="field">
+            <span class="field-label">密码</span>
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="至少 8 位" />
+          </label>
+          <p class="form-error hidden" id="loginError" role="alert"></p>
+          <button type="submit" class="btn btn-primary btn-block" id="loginSubmit">登 录</button>
+          <div class="auth-links">
+            <a href="#" id="forgotLink">忘记密码？</a>
+            <span class="auth-switch">还没有账号？<a href="#" id="toRegisterLink">去注册</a></span>
+          </div>
+        </form>
+
+        <!-- 注册 -->
+        <form id="registerForm" class="hidden" novalidate>
+          <label class="field">
+            <span class="field-label">邮箱</span>
+            <div class="field-row">
+              <input id="regEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+              <button type="button" class="btn btn-ghost btn-send" id="regSendBtn">发送验证码</button>
+            </div>
+          </label>
+          <label class="field">
+            <span class="field-label">邮箱验证码</span>
+            <input id="regCode" class="code-input" type="text" inputmode="numeric" maxlength="4" placeholder="····" autocomplete="one-time-code" />
+          </label>
+          <label class="field">
+            <span class="field-label">设置密码</span>
+            <input id="regPassword" type="password" autocomplete="new-password" placeholder="至少 8 位" />
+          </label>
+          <label class="field">
+            <span class="field-label">确认密码</span>
+            <input id="regConfirm" type="password" autocomplete="new-password" placeholder="再次输入密码" />
+          </label>
+          <p class="auth-hint hidden" id="regHint"></p>
+          <p class="form-error hidden" id="regError" role="alert"></p>
+          <button type="submit" class="btn btn-primary btn-block" id="regSubmit">注 册</button>
+          <div class="auth-links">
+            <span class="auth-switch">已有账号？<a href="#" id="toLoginLink">去登录</a></span>
+          </div>
+        </form>
+
+        <!-- 找回密码 -->
+        <form id="resetForm" class="hidden" novalidate>
+          <label class="field">
+            <span class="field-label">注册邮箱</span>
+            <div class="field-row">
+              <input id="resetEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+              <button type="button" class="btn btn-ghost btn-send" id="resetSendBtn">发送验证码</button>
+            </div>
+          </label>
+          <label class="field">
+            <span class="field-label">邮箱验证码</span>
+            <input id="resetCode" class="code-input" type="text" inputmode="numeric" maxlength="4" placeholder="····" autocomplete="one-time-code" />
+          </label>
+          <label class="field">
+            <span class="field-label">新密码</span>
+            <input id="resetPassword" type="password" autocomplete="new-password" placeholder="至少 8 位" />
+          </label>
+          <label class="field">
+            <span class="field-label">确认新密码</span>
+            <input id="resetConfirm" type="password" autocomplete="new-password" placeholder="再次输入新密码" />
+          </label>
+          <p class="auth-hint hidden" id="resetHint"></p>
+          <p class="form-error hidden" id="resetError" role="alert"></p>
+          <button type="submit" class="btn btn-primary btn-block" id="resetSubmit">重置密码</button>
+          <div class="auth-links">
+            <a href="#" id="backToLoginLink">← 返回登录</a>
+          </div>
+        </form>
       </div>
-    </header>
+    </section>
 
-    <main class="container">
-      <div class="status-bar">
-        <span id="stats" class="stats"></span>
-      </div>
+    <!-- 已登录：应用 -->
+    <div id="appView" class="hidden">
+      <header class="topbar">
+        <div class="container topbar-inner">
+          <a class="brand" href="/" aria-label="云书签首页">
+            <svg class="brand-logo" viewBox="0 0 64 64" aria-hidden="true">
+              <defs>
+                <linearGradient id="brand-g" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#4f6ef7" />
+                  <stop offset="1" stop-color="#8a5cf6" />
+                </linearGradient>
+              </defs>
+              <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#brand-g)" />
+              <path d="M24 16h16a4 4 0 0 1 4 4v28l-12-8-12 8V20a4 4 0 0 1 4-4z" fill="#fff" />
+            </svg>
+            <span class="brand-name">云书签</span>
+            <span class="brand-sub">Cloud Bookmark</span>
+          </a>
+          <div class="topbar-actions">
+            <div class="searchbox">
+              <span class="search-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+              </span>
+              <input id="searchInput" type="search" placeholder="搜索标题 / 描述 / 域名…" autocomplete="off" />
+            </div>
+            <button id="addBtn" class="btn btn-primary" type="button">＋ 添加书签</button>
+            <div class="userbox">
+              <span id="userEmail" class="user-email" title=""></span>
+              <button id="adminBtn" class="btn btn-ghost btn-sm hidden" type="button">用户管理</button>
+              <button id="logoutBtn" class="btn btn-ghost btn-sm" type="button">退出</button>
+            </div>
+          </div>
+        </div>
+      </header>
 
-      <section id="loading" class="loading" aria-live="polite">
-        <div class="spinner" aria-hidden="true"></div>
-        <p>正在加载书签…</p>
-      </section>
+      <main class="container">
+        <div class="status-bar">
+          <span id="stats" class="stats"></span>
+        </div>
 
-      <section id="grid" class="grid" aria-label="书签列表"></section>
+        <section id="loading" class="loading" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p>正在加载书签…</p>
+        </section>
 
-      <section id="emptyState" class="empty hidden">
-        <svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true">
-          <defs>
-            <linearGradient id="empty-g" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#4f6ef7" />
-              <stop offset="1" stop-color="#8a5cf6" />
-            </linearGradient>
-          </defs>
-          <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#empty-g)" opacity="0.14" />
-          <path d="M24 16h16a4 4 0 0 1 4 4v28l-12-8-12 8V20a4 4 0 0 1 4-4z" fill="url(#empty-g)" />
-        </svg>
-        <h2>还没有任何书签</h2>
-        <p>点击下方按钮，输入网址即可自动抓取图标与描述。</p>
-        <button id="emptyAddBtn" class="btn btn-primary" type="button">＋ 添加第一个书签</button>
-      </section>
+        <section id="grid" class="grid" aria-label="书签列表"></section>
 
-      <section id="noMatch" class="empty hidden">
-        <h2>没有匹配的书签</h2>
-        <p>换个关键词试试，或清空搜索条件。</p>
-      </section>
-    </main>
+        <section id="emptyState" class="empty hidden">
+          <svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true">
+            <defs>
+              <linearGradient id="empty-g" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#4f6ef7" />
+                <stop offset="1" stop-color="#8a5cf6" />
+              </linearGradient>
+            </defs>
+            <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#empty-g)" opacity="0.14" />
+            <path d="M24 16h16a4 4 0 0 1 4 4v28l-12-8-12 8V20a4 4 0 0 1 4-4z" fill="url(#empty-g)" />
+          </svg>
+          <h2>还没有任何书签</h2>
+          <p>点击下方按钮，输入网址即可自动抓取图标与描述。</p>
+          <button id="emptyAddBtn" class="btn btn-primary" type="button">＋ 添加第一个书签</button>
+        </section>
 
-    <footer class="footer">
-      <div class="container">
-        云书签 · 由
-        <a href="https://workers.cloudflare.com/" target="_blank" rel="noopener noreferrer">Cloudflare Workers</a> 与
-        <a href="https://developers.cloudflare.com/d1/" target="_blank" rel="noopener noreferrer">D1</a> 强力驱动
-      </div>
-    </footer>
+        <section id="noMatch" class="empty hidden">
+          <h2>没有匹配的书签</h2>
+          <p>换个关键词试试，或清空搜索条件。</p>
+        </section>
+      </main>
+
+      <footer class="footer">
+        <div class="container">
+          云书签 · 由
+          <a href="https://workers.cloudflare.com/" target="_blank" rel="noopener noreferrer">Cloudflare Workers</a> 与
+          <a href="https://developers.cloudflare.com/d1/" target="_blank" rel="noopener noreferrer">D1</a> 强力驱动
+        </div>
+      </footer>
+    </div>
 
     <!-- 添加 / 编辑对话框 -->
     <dialog id="bookmarkDialog" class="dialog">
@@ -114,13 +226,22 @@
       </form>
     </dialog>
 
+    <!-- 用户管理（管理员） -->
+    <dialog id="usersDialog" class="dialog dialog-sm">
+      <h3 class="dialog-title">用户管理</h3>
+      <div id="usersList" class="users-list"></div>
+      <div class="dialog-actions">
+        <button type="button" class="btn btn-ghost" id="usersCloseBtn">关闭</button>
+      </div>
+    </dialog>
+
     <!-- 删除确认对话框 -->
     <dialog id="confirmDialog" class="dialog dialog-sm">
-      <h3 class="dialog-title">删除书签</h3>
+      <h3 class="dialog-title">确认操作</h3>
       <p class="confirm-text" id="confirmText"></p>
       <div class="dialog-actions">
         <button type="button" class="btn btn-ghost" id="confirmCancel">取消</button>
-        <button type="button" class="btn btn-danger" id="confirmOk">删除</button>
+        <button type="button" class="btn btn-danger" id="confirmOk">确定</button>
       </div>
     </dialog>
 

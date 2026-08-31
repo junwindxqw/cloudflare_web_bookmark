@@ -698,4 +698,202 @@ dialog.dialog[open] {
   .status-bar {
     margin-top: 16px;
   }
+
+  .user-email {
+    display: none;
+  }
+}
+
+/* ============================================================
+   多用户认证
+   ============================================================ */
+
+.boot {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  color: var(--text-3);
+  font-size: 14px;
+}
+
+.auth-view {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: linear-gradient(180deg, var(--primary-weak) 0%, var(--bg) 42%);
+}
+
+.auth-card {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: var(--shadow-md);
+}
+
+.auth-brand {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.auth-brand .brand-logo {
+  width: 34px;
+  height: 34px;
+  align-self: center;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 18px;
+  background: var(--surface-2);
+  border-radius: 12px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 8px 0;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.auth-tab.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.auth-links {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.auth-links a {
+  color: var(--primary);
+}
+
+.auth-switch {
+  color: var(--text-3);
+}
+
+.btn-block {
+  width: 100%;
+  padding-block: 11px;
+  font-size: 15px;
+}
+
+.btn-send {
+  flex: none;
+  min-width: 108px;
+}
+
+.code-input {
+  letter-spacing: 10px;
+  font-size: 20px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.auth-hint {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-weak);
+  color: var(--primary);
+  font-size: 12.5px;
+  word-break: break-all;
+}
+
+/* 顶栏用户区 */
+
+.userbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-email {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+/* 用户管理对话框 */
+
+.users-list {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.user-row:last-child {
+  border-bottom: none;
+}
+
+.user-row-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.user-row-email {
+  font-size: 13.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-row-meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.role-badge {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  background: var(--primary-weak);
+  color: var(--primary);
+}
+
+.role-badge.owner {
+  background: var(--danger-weak);
+  color: var(--danger);
 }

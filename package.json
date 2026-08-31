@@ -8,7 +8,7 @@
     "dev": "wrangler dev",
     "setup": "wrangler deploy",
     "deploy": "wrangler deploy",
-    "check": "node --check src/index.js && node --check public/app.js"
+    "check": "node --check src/index.js && node --check src/util.js && node --check src/mail.js && node --check src/auth.js && node --check src/metadata.js && node --check public/app.js"
   },
   "engines": {
     "node": ">=18"
