@@ -3,7 +3,11 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "cloud-bookmark",
   "main": "src/index.js",
-  "compatibility_date": "2025-03-01",
+  "compatibility_date": "2025-03-31",
+  "vars": {
+    // 验证码邮件的发件人；需是已在 Resend 控制台完成 DNS 验证的域名
+    "MAIL_FROM": "云书签 <noreply@junwind.site>"
+  },
   "assets": {
     // 前端静态资源目录：命中的请求直接由静态资源层返回，未命中的（/api/*）进入 Worker
     "directory": "./public",
