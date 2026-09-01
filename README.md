@@ -89,6 +89,37 @@ Workers 无法直连 SMTP 发信，项目使用对 Workers 最友好的 [Resend]
 
 > 💡 **本地开发**无需配置任何邮件变量：项目根目录的 `.dev.vars` 中设 `MAIL_DEV_MODE=true`，验证码会直接显示在页面上。
 
+### 使用你已配置好的 `junwind.site` 域名发邮件
+
+如果你已按 Resend 文档把 `junwind.site` 关联到 Cloudflare 并完成验证，可以这样配置：
+
+```bash
+# 1. 把 API Key 配为 Worker 密钥（按提示粘贴 re_xxxx 形式的密钥）
+npx wrangler secret put RESEND_API_KEY
+
+# 2. 配置发件人：建议使用 noreply@junwind.site（也可以用 no-reply、hello 等同域下任何子域）
+#    注意：MAIL_FROM 通过 wrangler.toml 的 [vars] 段或 .dev.vars 写为普通变量即可
+npx wrangler deploy  # 之后用 .dev.vars 与生产环境的 wrangler.jsonc 同名变量配置 MAIL_FROM
+```
+
+`wrangler.jsonc` 当前没声明 `MAIL_FROM`，可以补一段：
+
+```jsonc
+{
+  "vars": {
+    "MAIL_FROM": "云书签 <noreply@junwind.site>"
+  }
+}
+```
+
+> 🔍 **域名前置检查**（已替你跑过）：
+>
+> - `junwind.site` NS 记录 → `maya.ns.cloudflare.com` / `garrett.ns.cloudflare.com` ✅ 域名托管在 Cloudflare；
+> - `resend._domainkey.junwind.site` TXT 记录 → 已包含 Resend DKIM 公钥 ✅ 域名验证记录已发布；
+> - `https://api.resend.com/` → `HTTP 200` ✅ API 可达。
+>
+> 只要 `RESEND_API_KEY` 配好，生产环境验证码会真实发送；不配也能跑（但只会发到 Resend 账号本人邮箱）。
+
 ## 🛠️ 手动部署（CLI 方式）
 
 ```bash
