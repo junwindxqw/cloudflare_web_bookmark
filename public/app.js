@@ -40,8 +40,13 @@ const ICON_EDIT =
   '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>';
 const ICON_TRASH =
   '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+const ICON_COPY =
+  '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+const ICON_EXTERNAL =
+  '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const URL_RE = /^https?:\/\//i;
 
 function hostOf(url) {
   try {
@@ -55,7 +60,7 @@ function hostOf(url) {
 function guessUrl(raw) {
   let s = (raw || '').trim();
   if (!s) return null;
-  if (!/^https?:\/\//i.test(s)) s = 'https://' + s;
+  if (!URL_RE.test(s)) s = 'https://' + s;
   try {
     const u = new URL(s);
     if ((u.protocol !== 'http:' && u.protocol !== 'https:') || !u.hostname) return null;
@@ -93,6 +98,53 @@ async function api(path, options = {}) {
   return body.data;
 }
 
+/** 转义 HTML 用于高亮显示 */
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** 在文本中高亮子串（用于搜索命中），返回安全的 HTML 字符串 */
+function highlight(text, query) {
+  const safe = escapeHtml(text);
+  if (!query) return safe;
+  const q = query.trim();
+  if (!q) return safe;
+  const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+  return safe.replace(re, (m) => `<mark class="search-hit">${m}</mark>`);
+}
+
+/** 异步复制文本到剪贴板 */
+async function copyToClipboard(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch { /* 退化方案 */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/** 判断 mac 用户（用于快捷键提示） */
+const IS_MAC = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
 /* ------------------------------ 元素与状态 ------------------------------ */
 
 const els = {
@@ -106,6 +158,7 @@ const els = {
   loginEmail: $('#loginEmail'),
   loginPassword: $('#loginPassword'),
   loginError: $('#loginError'),
+  loginSubmit: $('#loginSubmit'),
   registerForm: $('#registerForm'),
   regEmail: $('#regEmail'),
   regSendBtn: $('#regSendBtn'),
@@ -114,6 +167,7 @@ const els = {
   regConfirm: $('#regConfirm'),
   regHint: $('#regHint'),
   regError: $('#regError'),
+  regSubmit: $('#regSubmit'),
   resetForm: $('#resetForm'),
   resetEmail: $('#resetEmail'),
   resetSendBtn: $('#resetSendBtn'),
@@ -122,22 +176,27 @@ const els = {
   resetConfirm: $('#resetConfirm'),
   resetHint: $('#resetHint'),
   resetError: $('#resetError'),
+  resetSubmit: $('#resetSubmit'),
   forgotLink: $('#forgotLink'),
   toRegisterLink: $('#toRegisterLink'),
   toLoginLink: $('#toLoginLink'),
   backToLoginLink: $('#backToLoginLink'),
   // 应用
   searchInput: $('#searchInput'),
+  searchbox: $('#searchbox'),
+  searchClear: $('#searchClear'),
   addBtn: $('#addBtn'),
   emptyAddBtn: $('#emptyAddBtn'),
+  noMatchClearBtn: $('#noMatchClearBtn'),
   grid: $('#grid'),
   emptyState: $('#emptyState'),
   noMatch: $('#noMatch'),
   loading: $('#loading'),
   stats: $('#stats'),
   userEmail: $('#userEmail'),
-  adminBtn: $('#adminBtn'),
-  logoutBtn: $('#logoutBtn'),
+  userMenuBtn: $('#userMenuBtn'),
+  sortSelect: $('#sortSelect'),
+  viewBtns: document.querySelectorAll('.view-btn'),
   // 对话框
   dialog: $('#bookmarkDialog'),
   dialogTitle: $('#dialogTitle'),
@@ -160,6 +219,24 @@ const els = {
   confirmText: $('#confirmText'),
   confirmOk: $('#confirmOk'),
   confirmCancel: $('#confirmCancel'),
+  // 用户菜单
+  userMenu: $('#userMenu'),
+  userMenuEmail: $('#userMenuEmail'),
+  userMenuAdmin: $('#userMenuAdmin'),
+  userMenuLogout: $('#userMenuLogout'),
+  userMenuClose: $('#userMenuClose'),
+  // 命令面板
+  commandPanel: $('#commandPanel'),
+  commandInput: $('#commandInput'),
+  commandList: $('#commandList'),
+  // 移动端抽屉
+  mobileMenuBtn: $('#mobileMenuBtn'),
+  mobileDrawer: $('#mobileDrawer'),
+  mobileDrawerEmail: $('#mobileDrawerEmail'),
+  mobileAddBtn: $('#mobileAddBtn'),
+  mobileAdminBtn: $('#mobileAdminBtn'),
+  mobileLogoutBtn: $('#mobileLogoutBtn'),
+  // 提示
   toast: $('#toast'),
 };
 
@@ -173,7 +250,26 @@ const state = {
   lastFetchedUrl: '',
   fetching: false,
   confirmAction: null,
+  view: loadPref('view', 'grid'),
+  sort: loadPref('sort', 'created_desc'),
 };
+
+/* ------------------------------ 偏好持久化 ------------------------------ */
+
+function loadPref(key, fallback) {
+  try {
+    const v = localStorage.getItem('cb.' + key);
+    return v === null ? fallback : v;
+  } catch {
+    return fallback;
+  }
+}
+
+function savePref(key, value) {
+  try {
+    localStorage.setItem('cb.' + key, String(value));
+  } catch { /* 忽略隐私模式 */ }
+}
 
 /* ------------------------------ 提示 ------------------------------ */
 
@@ -224,7 +320,13 @@ function enterApp(user) {
   els.appView.classList.remove('hidden');
   els.userEmail.textContent = user.email;
   els.userEmail.title = user.email;
-  els.adminBtn.classList.toggle('hidden', user.role !== 'admin');
+  els.userMenuBtn.textContent = (user.email[0] || '?').toUpperCase();
+  els.userMenuBtn.title = user.email;
+  els.userMenuEmail.textContent = user.email;
+  els.mobileDrawerEmail.textContent = user.email;
+  els.mobileAdminBtn.classList.toggle('hidden', user.role !== 'admin');
+  applyView();
+  els.sortSelect.value = state.sort;
   els.loading.classList.remove('hidden');
   load();
 }
@@ -242,6 +344,8 @@ function resetAuthForms() {
 }
 
 async function handleLogout() {
+  closeUserMenu();
+  closeMobileDrawer();
   try {
     await api('/api/auth/logout', { method: 'POST' });
   } catch {
@@ -314,6 +418,40 @@ async function sendCode(kind) {
   }
 }
 
+/* ------------------------------ 视图 / 排序 ------------------------------ */
+
+function applyView() {
+  const isList = state.view === 'list';
+  els.grid.classList.toggle('grid', !isList);
+  els.grid.classList.toggle('list', isList);
+  els.grid.setAttribute('aria-label', isList ? '书签列表（列表视图）' : '书签列表（网格视图）');
+  for (const btn of els.viewBtns) {
+    btn.classList.toggle('active', btn.dataset.view === state.view);
+  }
+}
+
+function applySort(list) {
+  const sorted = list.slice();
+  switch (state.sort) {
+    case 'created_asc':
+      sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      break;
+    case 'title_asc':
+      sorted.sort((a, b) => (a.title || hostOf(a.url)).localeCompare(b.title || hostOf(b.url), 'zh-Hans-CN'));
+      break;
+    case 'title_desc':
+      sorted.sort((a, b) => (b.title || hostOf(b.url)).localeCompare(a.title || hostOf(a.url), 'zh-Hans-CN'));
+      break;
+    case 'host_asc':
+      sorted.sort((a, b) => hostOf(a.url).localeCompare(hostOf(b.url)));
+      break;
+    case 'created_desc':
+    default:
+      sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  }
+  return sorted;
+}
+
 /* ------------------------------ 渲染 ------------------------------ */
 
 function letterAvatar(host) {
@@ -328,7 +466,7 @@ function letterAvatar(host) {
   });
 }
 
-function iconNode(bm) {
+function iconNode(bm, query) {
   const host = hostOf(bm.url);
   const a = h('a', {
     class: 'bm-icon',
@@ -348,47 +486,111 @@ function iconNode(bm) {
   return a;
 }
 
-function cardNode(bm) {
+function cardNode(bm, query) {
   const host = hostOf(bm.url);
   const card = h('article', { class: 'card' });
+  const titleText = bm.title || host;
+  const cardTitle = h('a', {
+    class: 'card-title',
+    href: bm.url,
+    target: '_blank',
+    rel: 'noopener noreferrer',
+    title: bm.title || bm.url,
+  });
+  // 用 innerHTML 一次性插入含高亮的标题（已转义安全）
+  cardTitle.innerHTML = highlight(titleText, query) + (bm.title ? ' ' : '') +
+    '<span style="display:inline-block;vertical-align:middle;opacity:0.55;margin-left:2px">' + ICON_EXTERNAL + '</span>';
+
+  const metaParts = [];
+  if (query) {
+    metaParts.push('<span>' + highlight(host, query) + '</span>');
+  } else {
+    metaParts.push('<span>' + escapeHtml(host) + '</span>');
+  }
+  metaParts.push('<span class="dot">·</span>');
+  metaParts.push('<span>' + escapeHtml(formatDate(bm.created_at)) + '</span>');
+
+  const cardMeta = h('div', { class: 'card-meta' });
+  cardMeta.innerHTML = metaParts.join(' ');
+
+  // 复制链接反馈浮层
+  const feedback = h('span', { class: 'copy-feedback', text: '已复制链接' });
+
   card.append(
     h('div', { class: 'card-head' },
-      iconNode(bm),
+      iconNode(bm, query),
       h('div', { class: 'card-text' },
-        h('a', {
-          class: 'card-title',
-          href: bm.url,
-          target: '_blank',
-          rel: 'noopener noreferrer',
-          title: bm.title || bm.url,
-          text: bm.title || host,
-        }),
-        h('div', { class: 'card-meta', text: [host, formatDate(bm.created_at)].filter(Boolean).join(' · ') }),
+        cardTitle,
+        cardMeta,
       ),
     ),
     h('div', { class: 'card-actions' },
-      h('button', { class: 'icon-btn', type: 'button', title: '编辑', 'aria-label': '编辑书签', onclick: () => openEditDialog(bm) }, svgIcon(ICON_EDIT)),
-      h('button', { class: 'icon-btn danger', type: 'button', title: '删除', 'aria-label': '删除书签', onclick: () => confirmDelete(bm) }, svgIcon(ICON_TRASH)),
+      h('button', {
+        class: 'icon-btn',
+        type: 'button',
+        title: '复制链接',
+        'aria-label': `复制 ${bm.title || host} 的链接`,
+        onclick: async (ev) => {
+          ev.stopPropagation();
+          const ok = await copyToClipboard(bm.url);
+          if (ok) {
+            feedback.classList.add('show');
+            clearTimeout(feedback._t);
+            feedback._t = setTimeout(() => feedback.classList.remove('show'), 1400);
+            toast('链接已复制', 'success');
+          } else {
+            toast('复制失败，请手动选择复制', 'error');
+          }
+        },
+      }, svgIcon(ICON_COPY)),
+      h('button', {
+        class: 'icon-btn',
+        type: 'button',
+        title: '编辑',
+        'aria-label': '编辑书签',
+        onclick: (ev) => { ev.stopPropagation(); openEditDialog(bm); },
+      }, svgIcon(ICON_EDIT)),
+      h('button', {
+        class: 'icon-btn danger',
+        type: 'button',
+        title: '删除',
+        'aria-label': '删除书签',
+        onclick: (ev) => { ev.stopPropagation(); confirmDelete(bm); },
+      }, svgIcon(ICON_TRASH)),
     ),
+    feedback,
   );
-  if (bm.description) card.append(h('p', { class: 'card-desc', text: bm.description }));
+  if (bm.description) {
+    const desc = h('p', { class: 'card-desc' });
+    desc.innerHTML = highlight(bm.description, query);
+    card.append(desc);
+  }
   return card;
 }
 
 function render() {
   const q = els.searchInput.value.trim().toLowerCase();
-  const list = q
+  const filtered = q
     ? state.bookmarks.filter((b) =>
         `${b.title} ${b.description} ${hostOf(b.url)}`.toLowerCase().includes(q),
       )
     : state.bookmarks;
+  const list = applySort(filtered);
 
-  els.grid.replaceChildren(...list.map(cardNode));
-  els.emptyState.classList.toggle('hidden', state.bookmarks.length > 0);
-  els.noMatch.classList.toggle('hidden', !(state.bookmarks.length > 0 && list.length === 0));
-  els.stats.textContent = q
-    ? `匹配 ${list.length} / 共 ${state.bookmarks.length} 个书签`
-    : `共 ${state.bookmarks.length} 个书签`;
+  els.grid.replaceChildren(...list.map((bm) => cardNode(bm, q)));
+
+  const total = state.bookmarks.length;
+  els.emptyState.classList.toggle('hidden', total > 0);
+  els.noMatch.classList.toggle('hidden', !(total > 0 && filtered.length === 0));
+
+  if (total === 0) {
+    els.stats.innerHTML = '';
+  } else if (q) {
+    els.stats.innerHTML =
+      `匹配 <strong>${filtered.length}</strong> / 共 <strong>${total}</strong> 个书签`;
+  } else {
+    els.stats.innerHTML = `共 <strong>${total}</strong> 个书签`;
+  }
 }
 
 async function load() {
@@ -436,9 +638,10 @@ function resetDialogState() {
 }
 
 function openAddDialog() {
+  closeCommandPanel();
   resetDialogState();
   state.editingId = null;
-  els.dialogTitle.textContent = '添加书签';
+  els.dialogTitle.childNodes[0].nodeValue = '添加书签';
   els.form.reset();
   els.saveBtn.textContent = '保存';
   els.iconPreviewWrap.classList.add('hidden');
@@ -451,7 +654,7 @@ function openEditDialog(bm) {
   state.editingId = bm.id;
   state.iconUrl = bm.icon_url || '';
   state.lastFetchedUrl = bm.url;
-  els.dialogTitle.textContent = '编辑书签';
+  els.dialogTitle.childNodes[0].nodeValue = '编辑书签';
   els.urlInput.value = bm.url;
   els.titleInput.value = bm.title || '';
   els.descInput.value = bm.description || '';
@@ -476,8 +679,8 @@ async function fetchMetaForDialog() {
   }
   state.fetching = true;
   els.fetchBtn.disabled = true;
-  const original = els.fetchBtnLabel.textContent;
-  els.fetchBtnLabel.textContent = '获取中…';
+  const original = els.fetchBtnLabel ? els.fetchBtnLabel.textContent : '获取信息';
+  if (els.fetchBtnLabel) els.fetchBtnLabel.textContent = '获取中…';
   setFormError(els.formError, '');
   try {
     const meta = await api('/api/metadata', { method: 'POST', body: JSON.stringify({ url: raw }) });
@@ -493,7 +696,7 @@ async function fetchMetaForDialog() {
   } finally {
     state.fetching = false;
     els.fetchBtn.disabled = false;
-    els.fetchBtnLabel.textContent = original;
+    if (els.fetchBtnLabel) els.fetchBtnLabel.textContent = original;
   }
 }
 
@@ -571,6 +774,7 @@ els.confirmOk.addEventListener('click', async () => {
 /* ------------------------------ 用户管理（管理员） ------------------------------ */
 
 async function openUsersDialog() {
+  closeUserMenu();
   els.usersDialog.showModal();
   els.usersList.replaceChildren(h('p', { class: 'user-row-meta', text: '加载中…' }));
   await renderUsers();
@@ -615,6 +819,192 @@ async function renderUsers() {
   } catch (err) {
     els.usersList.replaceChildren(h('p', { class: 'user-row-meta', text: err.message }));
   }
+}
+
+/* ------------------------------ 用户菜单 ------------------------------ */
+
+function openUserMenu() {
+  els.userMenu.classList.add('show');
+  els.userMenu.setAttribute('aria-hidden', 'false');
+  els.userMenuAdmin.classList.toggle('hidden', state.currentUser?.role !== 'admin');
+}
+function closeUserMenu() {
+  els.userMenu.classList.remove('show');
+  els.userMenu.setAttribute('aria-hidden', 'true');
+}
+
+/* ------------------------------ 命令面板 ------------------------------ */
+
+const commands = [
+  {
+    id: 'add',
+    title: '添加新书签',
+    desc: '打开添加对话框',
+    icon: 'plus',
+    keys: 'n',
+    run: () => openAddDialog(),
+  },
+  {
+    id: 'search',
+    title: '聚焦搜索框',
+    desc: '快速搜索书签',
+    icon: 'search',
+    keys: '/',
+    run: () => els.searchInput.focus(),
+  },
+  {
+    id: 'list',
+    title: '切换列表视图',
+    desc: '更紧凑的单列展示',
+    icon: 'list',
+    run: () => { state.view = 'list'; savePref('view', state.view); applyView(); toast('已切换到列表视图'); },
+  },
+  {
+    id: 'grid',
+    title: '切换网格视图',
+    desc: '默认的卡片墙',
+    icon: 'grid',
+    run: () => { state.view = 'grid'; savePref('view', state.view); applyView(); toast('已切换到网格视图'); },
+  },
+  {
+    id: 'sort_new',
+    title: '排序：最新添加',
+    desc: '按创建时间倒序',
+    icon: 'sort',
+    run: () => { state.sort = 'created_desc'; els.sortSelect.value = state.sort; savePref('sort', state.sort); render(); },
+  },
+  {
+    id: 'sort_old',
+    title: '排序：最早添加',
+    desc: '按创建时间正序',
+    icon: 'sort',
+    run: () => { state.sort = 'created_asc'; els.sortSelect.value = state.sort; savePref('sort', state.sort); render(); },
+  },
+  {
+    id: 'sort_title',
+    title: '排序：按标题',
+    desc: 'A → Z 字母序',
+    icon: 'sort',
+    run: () => { state.sort = 'title_asc'; els.sortSelect.value = state.sort; savePref('sort', state.sort); render(); },
+  },
+  {
+    id: 'sort_host',
+    title: '排序：按域名',
+    desc: '域名 A → Z',
+    icon: 'sort',
+    run: () => { state.sort = 'host_asc'; els.sortSelect.value = state.sort; savePref('sort', state.sort); render(); },
+  },
+  {
+    id: 'admin',
+    title: '用户管理',
+    desc: '查看、删除成员（仅管理员）',
+    icon: 'users',
+    adminOnly: true,
+    run: () => openUsersDialog(),
+  },
+  {
+    id: 'logout',
+    title: '退出登录',
+    desc: '清除当前会话',
+    icon: 'logout',
+    run: () => handleLogout(),
+  },
+];
+
+const CMD_ICONS = {
+  plus: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  search: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  list: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>',
+  grid: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+  sort: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h9M3 18h5"/><path d="m17 8 4 4-4 4M21 12h-9"/></svg>',
+  users: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6M19 8v6"/></svg>',
+  logout: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>',
+};
+
+let cmdIndex = 0;
+let cmdList = [];
+
+function openCommandPanel() {
+  els.commandPanel.classList.add('show');
+  els.commandPanel.setAttribute('aria-hidden', 'false');
+  els.commandInput.value = '';
+  renderCommandList('');
+  setTimeout(() => els.commandInput.focus(), 30);
+}
+
+function closeCommandPanel() {
+  els.commandPanel.classList.remove('show');
+  els.commandPanel.setAttribute('aria-hidden', 'true');
+}
+
+function renderCommandList(query) {
+  const isAdmin = state.currentUser?.role === 'admin';
+  cmdList = commands.filter((c) => !c.adminOnly || isAdmin)
+    .filter((c) => {
+      if (!query) return true;
+      const q = query.toLowerCase();
+      return c.title.toLowerCase().includes(q) || (c.desc || '').toLowerCase().includes(q);
+    });
+  cmdIndex = 0;
+  if (!cmdList.length) {
+    els.commandList.replaceChildren(
+      h('div', { class: 'command-empty', text: '没有匹配的命令' }),
+    );
+    return;
+  }
+  els.commandList.replaceChildren(
+    ...cmdList.map((c, i) => {
+      const item = h('div', {
+        class: 'command-item' + (i === 0 ? ' active' : ''),
+        'data-id': c.id,
+        onclick: () => { c.run(); closeCommandPanel(); },
+        onmouseenter: () => setActiveCommand(i),
+      },
+        h('span', { class: 'command-item-icon', html: CMD_ICONS[c.icon] || '' }),
+        h('div', { class: 'command-item-main' },
+          h('span', { class: 'command-item-title', text: c.title }),
+          h('span', { class: 'command-item-desc', text: c.desc || '' }),
+        ),
+        c.keys ? h('span', { class: 'command-item-kbd', text: c.keys }) : null,
+      );
+      return item;
+    }),
+  );
+}
+
+function setActiveCommand(i) {
+  const items = els.commandList.querySelectorAll('.command-item');
+  items.forEach((el, idx) => el.classList.toggle('active', idx === i));
+  cmdIndex = i;
+  items[i]?.scrollIntoView({ block: 'nearest' });
+}
+
+/* ------------------------------ 移动端抽屉 ------------------------------ */
+
+function openMobileDrawer() {
+  els.mobileDrawer.classList.add('show');
+  els.mobileDrawer.setAttribute('aria-hidden', 'false');
+  els.mobileAdminBtn.classList.toggle('hidden', state.currentUser?.role !== 'admin');
+}
+
+function closeMobileDrawer() {
+  els.mobileDrawer.classList.remove('show');
+  els.mobileDrawer.setAttribute('aria-hidden', 'true');
+}
+
+/* ------------------------------ 搜索框辅助 ------------------------------ */
+
+function updateSearchAffordance() {
+  const hasValue = els.searchInput.value.length > 0;
+  els.searchbox.classList.toggle('has-value', hasValue);
+  els.searchClear.classList.toggle('show', hasValue);
+}
+
+function clearSearch() {
+  els.searchInput.value = '';
+  updateSearchAffordance();
+  render();
+  els.searchInput.focus();
 }
 
 /* ------------------------------ 事件绑定 ------------------------------ */
@@ -717,6 +1107,7 @@ els.resetForm.addEventListener('submit', async (event) => {
 // 应用
 els.addBtn.addEventListener('click', openAddDialog);
 els.emptyAddBtn.addEventListener('click', openAddDialog);
+els.noMatchClearBtn.addEventListener('click', clearSearch);
 els.fetchBtn.addEventListener('click', fetchMetaForDialog);
 els.cancelBtn.addEventListener('click', () => els.dialog.close());
 els.titleInput.addEventListener('input', () => {
@@ -725,23 +1116,163 @@ els.titleInput.addEventListener('input', () => {
 els.descInput.addEventListener('input', () => {
   state.descDirty = true;
 });
-els.searchInput.addEventListener('input', render);
-els.logoutBtn.addEventListener('click', handleLogout);
-els.adminBtn.addEventListener('click', openUsersDialog);
+
+els.searchInput.addEventListener('input', () => {
+  updateSearchAffordance();
+  render();
+});
+els.searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && els.searchInput.value) {
+    e.preventDefault();
+    clearSearch();
+  }
+});
+els.searchClear.addEventListener('click', clearSearch);
+
+els.sortSelect.addEventListener('change', () => {
+  state.sort = els.sortSelect.value;
+  savePref('sort', state.sort);
+  render();
+});
+
+for (const btn of els.viewBtns) {
+  btn.addEventListener('click', () => {
+    state.view = btn.dataset.view;
+    savePref('view', state.view);
+    applyView();
+  });
+}
+
+// 退出/管理入口已迁移到点头像弹出的用户菜单，无需单独绑定
 els.usersCloseBtn.addEventListener('click', () => els.usersDialog.close());
 els.confirmCancel.addEventListener('click', () => els.confirmDialog.close());
 
-// 点击对话框遮罩区域关闭
+// 用户菜单
+els.userMenuBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (els.userMenu.classList.contains('show')) closeUserMenu();
+  else openUserMenu();
+});
+els.userMenuClose.addEventListener('click', closeUserMenu);
+els.userMenu.addEventListener('click', (e) => {
+  if (e.target === els.userMenu) closeUserMenu();
+});
+els.userMenuAdmin.addEventListener('click', () => { closeUserMenu(); openUsersDialog(); });
+els.userMenuLogout.addEventListener('click', () => { closeUserMenu(); handleLogout(); });
+
+// 命令面板
+els.commandPanel.addEventListener('click', (e) => {
+  if (e.target === els.commandPanel) closeCommandPanel();
+});
+els.commandInput.addEventListener('input', () => renderCommandList(els.commandInput.value));
+els.commandInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { e.preventDefault(); closeCommandPanel(); return; }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    setActiveCommand(Math.min(cmdIndex + 1, cmdList.length - 1));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    setActiveCommand(Math.max(cmdIndex - 1, 0));
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const c = cmdList[cmdIndex];
+    if (c) { c.run(); closeCommandPanel(); }
+  }
+});
+
+// 移动端抽屉
+els.mobileMenuBtn.addEventListener('click', openMobileDrawer);
+els.mobileAddBtn.addEventListener('click', () => { closeMobileDrawer(); openAddDialog(); });
+els.mobileAdminBtn.addEventListener('click', () => { closeMobileDrawer(); openUsersDialog(); });
+els.mobileLogoutBtn.addEventListener('click', () => { closeMobileDrawer(); handleLogout(); });
+els.mobileDrawer.addEventListener('click', (e) => {
+  if (e.target.dataset.close !== undefined || e.target.classList.contains('mobile-drawer-backdrop')) {
+    closeMobileDrawer();
+  }
+});
+
+// 点击对话框遮罩区域关闭 + Esc 关闭兜底（兼容所有浏览器对 dialog Esc 的差异处理）
 for (const dlg of [els.dialog, els.confirmDialog, els.usersDialog]) {
   dlg.addEventListener('click', (event) => {
     if (event.target === dlg) dlg.close();
   });
+  dlg.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && dlg.open) {
+      event.preventDefault();
+      dlg.close();
+    }
+  });
 }
 
-// 登录提交按钮引用（els 里没集中声明，这里补挂）
-els.loginSubmit = $('#loginSubmit');
-els.regSubmit = $('#regSubmit');
-els.resetSubmit = $('#resetSubmit');
+/* ------------------------------ 全局键盘快捷键 ------------------------------ */
+
+document.addEventListener('keydown', (e) => {
+  // 命令面板已打开时：Esc 关掉，↑/↓ 切换选择，Enter 执行；其它键由面板内 input 处理
+  if (els.commandPanel.classList.contains('show')) {
+    if (e.key === 'Escape') { e.preventDefault(); closeCommandPanel(); }
+    return;
+  }
+
+  const target = e.target;
+  const isTyping =
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    (target instanceof HTMLElement && target.isContentEditable);
+
+  // Esc 优先级：任何对话框/菜单 → 关闭它
+  if (e.key === 'Escape') {
+    if (els.userMenu.classList.contains('show')) { closeUserMenu(); return; }
+    if (els.mobileDrawer.classList.contains('show')) { closeMobileDrawer(); return; }
+  }
+
+  // 在输入框里时不触发全局快捷键
+  if (isTyping) return;
+
+  // 只在已登录应用页生效
+  if (els.appView.classList.contains('hidden')) return;
+
+  // Cmd/Ctrl + K → 命令面板
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    openCommandPanel();
+    return;
+  }
+
+  // / → 聚焦搜索
+  if (e.key === '/') {
+    e.preventDefault();
+    els.searchInput.focus();
+    els.searchInput.select();
+    return;
+  }
+
+  // n → 新建
+  if (e.key === 'n' || e.key === 'N') {
+    e.preventDefault();
+    openAddDialog();
+    return;
+  }
+
+  // g → 切换网格视图；l → 列表视图（Vim 风）
+  if (e.key === 'g') {
+    state.view = 'grid'; savePref('view', state.view); applyView();
+    toast('网格视图');
+    return;
+  }
+  if (e.key === 'l') {
+    state.view = 'list'; savePref('view', state.view); applyView();
+    toast('列表视图');
+    return;
+  }
+});
+
+// 点击空白处关闭用户菜单
+document.addEventListener('click', (e) => {
+  if (!els.userMenu.classList.contains('show')) return;
+  if (e.target === els.userMenuBtn || els.userMenuBtn.contains(e.target)) return;
+  if (e.target.closest('.command-panel-inner')) return;
+  closeUserMenu();
+});
 
 /* ------------------------------ 启动 ------------------------------ */
 

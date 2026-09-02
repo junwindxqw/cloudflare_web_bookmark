@@ -128,29 +128,59 @@
               <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#brand-g)" />
               <path d="M24 16h16a4 4 0 0 1 4 4v28l-12-8-12 8V20a4 4 0 0 1 4-4z" fill="#fff" />
             </svg>
-            <span class="brand-name">云书签</span>
-            <span class="brand-sub">Cloud Bookmark</span>
+            <span class="brand-text">
+              <span class="brand-name">云书签</span>
+              <span class="brand-sub">Cloud Bookmark</span>
+            </span>
           </a>
           <div class="topbar-actions">
-            <div class="searchbox">
+            <div class="searchbox" id="searchbox">
               <span class="search-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
               </span>
-              <input id="searchInput" type="search" placeholder="搜索标题 / 描述 / 域名…" autocomplete="off" />
+              <input id="searchInput" type="search" placeholder="搜索书签…" autocomplete="off" />
+              <kbd class="search-kbd" aria-hidden="true">/</kbd>
+              <button id="searchClear" class="search-clear" type="button" aria-label="清空搜索" title="清空">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
             </div>
-            <button id="addBtn" class="btn btn-primary" type="button">＋ 添加书签</button>
+            <button id="addBtn" class="btn btn-primary" type="button">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+              <span class="desktop-only">添加书签</span>
+            </button>
             <div class="userbox">
               <span id="userEmail" class="user-email" title=""></span>
-              <button id="adminBtn" class="btn btn-ghost btn-sm hidden" type="button">用户管理</button>
-              <button id="logoutBtn" class="btn btn-ghost btn-sm" type="button">退出</button>
+              <button id="userMenuBtn" class="user-avatar" type="button" aria-label="账户菜单" title="">?</button>
+              <button id="mobileMenuBtn" class="btn btn-ghost btn-sm mobile-only" type="button" aria-label="打开菜单" title="菜单">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+              </button>
             </div>
           </div>
         </div>
       </header>
 
       <main class="container">
-        <div class="status-bar">
-          <span id="stats" class="stats"></span>
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <span id="stats" class="stats"></span>
+          </div>
+          <div class="toolbar-right">
+            <select id="sortSelect" class="sort-select" aria-label="排序方式" title="排序方式">
+              <option value="created_desc">最新添加</option>
+              <option value="created_asc">最早添加</option>
+              <option value="title_asc">标题 A→Z</option>
+              <option value="title_desc">标题 Z→A</option>
+              <option value="host_asc">域名 A→Z</option>
+            </select>
+            <div class="view-switch" role="group" aria-label="视图切换">
+              <button class="view-btn active" data-view="grid" type="button" title="网格视图" aria-label="网格视图">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+              </button>
+              <button class="view-btn" data-view="list" type="button" title="列表视图" aria-label="列表视图">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+              </button>
+            </div>
+          </div>
         </div>
 
         <section id="loading" class="loading" aria-live="polite">
@@ -172,13 +202,36 @@
             <path d="M24 16h16a4 4 0 0 1 4 4v28l-12-8-12 8V20a4 4 0 0 1 4-4z" fill="url(#empty-g)" />
           </svg>
           <h2>还没有任何书签</h2>
-          <p>点击下方按钮，输入网址即可自动抓取图标与描述。</p>
-          <button id="emptyAddBtn" class="btn btn-primary" type="button">＋ 添加第一个书签</button>
+          <p>把你的第一个网址收藏进来，自动抓取图标和描述。</p>
+          <button id="emptyAddBtn" class="btn btn-primary" type="button">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            添加第一个书签
+          </button>
+          <div class="hint-keys">
+            <span>快捷键</span>
+            <kbd>n</kbd>
+            <span>新建</span>
+            <kbd>/</kbd>
+            <span>搜索</span>
+            <kbd>Esc</kbd>
+            <span>关闭</span>
+          </div>
         </section>
 
         <section id="noMatch" class="empty hidden">
+          <svg class="empty-art" viewBox="0 0 64 64" aria-hidden="true">
+            <defs>
+              <linearGradient id="empty-g2" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" stop-color="#4f6ef7" />
+                <stop offset="1" stop-color="#8a5cf6" />
+              </linearGradient>
+            </defs>
+            <circle cx="28" cy="28" r="14" fill="none" stroke="url(#empty-g2)" stroke-width="4" opacity="0.5"/>
+            <path d="m38 38 8 8" stroke="url(#empty-g2)" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
+          </svg>
           <h2>没有匹配的书签</h2>
           <p>换个关键词试试，或清空搜索条件。</p>
+          <button id="noMatchClearBtn" class="btn btn-ghost" type="button">清空搜索</button>
         </section>
       </main>
 
@@ -194,7 +247,7 @@
     <!-- 添加 / 编辑对话框 -->
     <dialog id="bookmarkDialog" class="dialog">
       <form id="bookmarkForm" novalidate>
-        <h3 class="dialog-title" id="dialogTitle">添加书签</h3>
+        <h3 class="dialog-title" id="dialogTitle">添加书签<span class="kbd-hint">Esc 关闭</span></h3>
         <label class="field">
           <span class="field-label">网址 <em>*</em></span>
           <div class="field-row">
@@ -244,6 +297,63 @@
         <button type="button" class="btn btn-danger" id="confirmOk">确定</button>
       </div>
     </dialog>
+
+    <!-- 用户菜单（点击头像） -->
+    <div id="userMenu" class="command-panel" aria-hidden="true">
+      <div class="command-panel-inner" style="max-height:none">
+        <div class="command-input-wrap" style="padding:14px 16px;border:none">
+          <span id="userMenuEmail" class="user-email" style="border:none;background:transparent;padding:0;font-weight:600;color:var(--text);font-size:14px"></span>
+          <button class="icon-btn" type="button" id="userMenuClose" style="margin-left:auto" aria-label="关闭">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="command-list">
+          <div class="command-item" id="userMenuAdmin">
+            <span class="command-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6M19 8v6"/></svg></span>
+            <div class="command-item-main">
+              <span class="command-item-title">用户管理</span>
+              <span class="command-item-desc">查看、删除成员</span>
+            </div>
+          </div>
+          <div class="command-item" id="userMenuLogout">
+            <span class="command-item-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg></span>
+            <div class="command-item-main">
+              <span class="command-item-title">退出登录</span>
+              <span class="command-item-desc">清除当前会话</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 命令面板 -->
+    <div id="commandPanel" class="command-panel" aria-hidden="true">
+      <div class="command-panel-inner">
+        <div class="command-input-wrap">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="8"/></svg>
+          <input id="commandInput" type="text" placeholder="输入命令或搜索书签…" autocomplete="off" />
+        </div>
+        <div id="commandList" class="command-list"></div>
+      </div>
+    </div>
+
+    <!-- 移动端抽屉 -->
+    <div id="mobileDrawer" class="mobile-drawer" aria-hidden="true">
+      <div class="mobile-drawer-backdrop" data-close></div>
+      <div class="mobile-drawer-panel">
+        <div class="mobile-drawer-head">
+          <span id="mobileDrawerEmail" class="user-email" title=""></span>
+          <button class="icon-btn" type="button" data-close aria-label="关闭">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="mobile-drawer-actions">
+          <button id="mobileAddBtn" class="btn btn-primary" type="button">＋ 添加书签</button>
+          <button id="mobileAdminBtn" class="btn btn-ghost hidden" type="button">用户管理</button>
+          <button id="mobileLogoutBtn" class="btn btn-danger-ghost" type="button">退出登录</button>
+        </div>
+      </div>
+    </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
