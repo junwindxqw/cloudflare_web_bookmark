@@ -381,8 +381,22 @@ export async function fetchMetadata(urlStr) {
   const pageUrl = new URL(finalUrl);
   const result = { url: finalUrl, title: '', description: '', icon_url: '' };
 
+  // 非 2xx 一律显式报错：静默兜底会让"获取失败"在前端伪装成成功（如 Cloudflare 挑战页）
+  if (!res.ok) {
+    const cfChallenge = (res.headers.get('cf-mitigated') || '').toLowerCase() === 'challenge';
+    const err = new ApiError(
+      cfChallenge
+        ? '目标站点开启了 Cloudflare 人机验证，无法自动抓取，请手动填写标题与描述'
+        : `目标网站返回 HTTP ${res.status}，无法自动抓取`,
+      502,
+    );
+    // 部分站点（如 GitHub）对数据中心出口的 bot 拦截是间歇性的，这类状态码值得重试
+    err.retryable = !cfChallenge && (res.status === 403 || res.status === 429 || res.status >= 500);
+    throw err;
+  }
+
   const contentType = (res.headers.get('content-type') || '').toLowerCase();
-  if (res.ok && (contentType.includes('text/html') || contentType.includes('xhtml'))) {
+  if (contentType.includes('text/html') || contentType.includes('xhtml')) {
     const html = await readHtmlLimited(res, MAX_HTML_BYTES);
     const meta = extractMeta(html, pageUrl);
     result.title = meta.title;
@@ -398,9 +412,13 @@ export async function fetchMetadata(urlStr) {
 }
 
 export async function tryFetchMetadata(urlStr) {
-  try {
-    return await fetchMetadata(urlStr);
-  } catch {
-    return null; // 抓取失败不阻塞书签的保存
+  // 最多 3 次：403/429 等拦截往往是间歇性的，短暂退避后大概率能命中放行窗口
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fetchMetadata(urlStr);
+    } catch (err) {
+      if (!err?.retryable || attempt >= 2) return null; // 抓取失败不阻塞书签的保存
+      await new Promise((resolve) => setTimeout(resolve, 400 * (attempt + 1)));
+    }
   }
 }

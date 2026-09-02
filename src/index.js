@@ -119,7 +119,7 @@ async function createBookmark(request, env, user) {
   const inputIcon = cleanStr(body.icon_url, LIMITS.icon_url);
 
   let meta = null;
-  if (!inputTitle || !inputIcon) meta = await tryFetchMetadata(url.href);
+  if (!inputTitle || !inputDesc || !inputIcon) meta = await tryFetchMetadata(url.href);
 
   const now = new Date().toISOString();
   const record = {
@@ -170,17 +170,21 @@ async function updateBookmark(request, env, user, id) {
     meta = await tryFetchMetadata(url);
   }
 
-  const title = body.title !== undefined ? cleanStr(body.title, LIMITS.title) : row.title || meta?.title || '';
+  // 前端对话框总是显式提交三个字段（可能为空串），因此合并规则是"提交值优先、抓取结果补空"；
+  // 标题为空或仍是裸域名兜底（之前抓取失败的痕迹）时，refetch 成功即可用真实标题覆盖
+  const host = new URL(url).hostname.replace(/^www\./, '');
+  let title = body.title !== undefined ? cleanStr(body.title, LIMITS.title) : row.title;
   const description =
-    body.description !== undefined
+    (body.description !== undefined
       ? cleanStr(body.description, LIMITS.description)
-      : row.description || meta?.description || '';
+      : row.description) || meta?.description || '';
   const iconUrl =
-    body.icon_url !== undefined ? cleanStr(body.icon_url, LIMITS.icon_url) : row.icon_url || meta?.icon_url || '';
+    (body.icon_url !== undefined ? cleanStr(body.icon_url, LIMITS.icon_url) : row.icon_url) || meta?.icon_url || '';
+  if (meta?.title && (!title || title === host)) title = meta.title;
 
   const record = {
     url,
-    title: title || meta?.title || new URL(url).hostname.replace(/^www\./, ''),
+    title: title || host,
     description,
     icon_url: iconUrl,
   };
