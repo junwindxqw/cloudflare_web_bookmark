@@ -72,9 +72,15 @@ const SCHEMA_STATEMENTS = [
     updated_at  TEXT    NOT NULL,
     UNIQUE (user_id, url)
   )`,
+  'CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)',
+];
+
+// 列补充与依赖这些列的索引分开：先 ALTER TABLE 加上列，再尝试建索引，
+// 这样老库（v1 单用户版 / 中途升级版）缺少 user_id / category 列时，
+// 索引创建不会因为 "no such column" 整体失败。
+const POST_ALTER_INDEX_STATEMENTS = [
   'CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks (user_id, id)',
   'CREATE INDEX IF NOT EXISTS idx_bookmarks_category ON bookmarks (user_id, category)',
-  'CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)',
 ];
 
 let schemaReady = null;
@@ -95,6 +101,14 @@ function ensureSchema(env) {
         await env.DB.prepare("ALTER TABLE bookmarks ADD COLUMN category TEXT NOT NULL DEFAULT ''").run();
       } catch {
         /* 列已存在 */
+      }
+      // 列补齐后再尝试建依赖列的索引；个别极端情况下若仍未成功也不致命
+      for (const sql of POST_ALTER_INDEX_STATEMENTS) {
+        try {
+          await env.DB.prepare(sql).run();
+        } catch {
+          /* 列缺失等极端情况静默 */
+        }
       }
     })().catch((err) => {
       schemaReady = null;
