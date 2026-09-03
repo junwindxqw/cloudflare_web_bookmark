@@ -16,3 +16,6 @@ node_modules/
 Thumbs.db
 .idea/
 .vscode/
+
+# ZCode 客户端本地工作状态（规划文件、会话缓存等）
+.zcode/

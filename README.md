@@ -24,6 +24,7 @@
 | 📧 | **邮箱验证码** | 注册与找回密码均通过邮箱验证码完成；验证码 10 分钟有效、错 5 次作废、60 秒重发冷却、同 IP 限频 |
 | 🔑 | **找回密码** | 忘记密码时通过邮箱验证码重置，重置后所有已登录设备强制下线 |
 | 🧠 | **智能收录** | 只需输入网址，服务端自动抓取网站**图标（Favicon）**与**标题、描述**（解析 `<title>` / Open Graph / meta 标签），也可手动修改 |
+| 🏷️ | **自动分类** | 新增书签时按内置词典（域名 / 标题关键词）自动归入 12 个分类之一；提供「一键自动分类」批量处理历史未分类书签；顶部可按分类筛选 |
 | 🖱️ | **点击即达** | 点击书签**图标**或标题，自动在浏览器**新标签页**中打开目标网站 |
 | 🗂️ | **单页管理** | 一个页面完成全部操作：添加 / 编辑 / 删除（二次确认），并提供关键词搜索过滤；每个用户的数据完全隔离 |
 | 🌗 | **深浅色主题** | 自动跟随系统外观切换深色 / 浅色模式 |
@@ -88,6 +89,16 @@ Workers 无法直连 SMTP 发信，项目使用对 Workers 最友好的 [Resend]
 | `PBKDF2_ITERATIONS` | 否 | 密码哈希迭代次数，默认 `10000`（免费版 CPU 限制下的保守值，付费版可调高） |
 
 > 💡 **本地开发**无需配置任何邮件变量：项目根目录的 `.dev.vars` 中设 `MAIL_DEV_MODE=true`，验证码会直接显示在页面上。
+
+### 访问域名：bookmark.junwind.site
+
+Worker 通过 Cloudflare 自定义域名为 **`https://bookmark.junwind.site`**。域名绑定不在 `wrangler.jsonc` 里声明，而是走 Cloudflare 仪表盘：
+
+**Workers & Pages → cloud-bookmark → Settings → Triggers → Custom Domains → Set up a custom domain**
+
+添加 `bookmark.junwind.site` 即可。Cloudflare 会自动创建 CNAME / 路由记录，无需手动改 DNS。完成后请求会直接落到本 Worker，前端通过相对路径调用 `cookie` 同域的 `/api/*`，跨站 Cookie / Secure 标记全部正常工作。
+
+> 若使用 CLI 绑定：`npx wrangler triggers deploy` 也能添加自定义域名（需 wrangler 3.78+）。
 
 ### 使用你已配置好的 `junwind.site` 域名发邮件
 
@@ -179,12 +190,12 @@ npm run dev        # 启动 wrangler dev，访问 http://localhost:8787
 
 ```bash
 # 示例：登录并保持会话
-curl -c cookies.txt -X POST https://<你的域名>/api/auth/login \
+curl -c cookies.txt -X POST https://bookmark.junwind.site/api/auth/login \
   -H "content-type: application/json" \
   -d '{"email": "you@example.com", "password": "your-password"}'
 
-# 示例：带会话添加书签（自动补全图标/描述）
-curl -b cookies.txt -X POST https://<你的域名>/api/bookmarks \
+# 示例：带会话添加书签（自动补全图标/描述 + 自动分类）
+curl -b cookies.txt -X POST https://bookmark.junwind.site/api/bookmarks \
   -H "content-type: application/json" \
   -d '{"url": "https://github.com"}'
 ```
@@ -217,6 +228,18 @@ cloudflare_web_bookmark/
 - **登录保护**：同一邮箱连续失败 5 次锁定 15 分钟（重置密码成功即解锁）。
 - **防 SSRF**：抓取元信息仅允许公网 `http/https` 地址，拒绝本地回环、内网与保留 IP 段，重定向逐跳复检；该功能仅登录用户可用。
 - **数据隔离**：书签按用户隔离，普通用户无法读写他人数据；管理员可删除用户（级联删除其书签与会话），但不能删除自己。
+
+## 🏷️ 自定义分类词典
+
+分类由 `src/category.js` 里的 `CATEGORIES` 数组定义（每项含 `id` / `label` / `color` / `domains` / `keywords`）。Worker 在新增 / 编辑 / 「一键自动分类」时按词典匹配：
+
+1. **域名命中**：先看 `domains`，子域会自动归到对应主域（如 `blog.github.com` 命中 `tech`）。
+2. **关键词扫描**：将 `title + description` 转小写后扫描 `keywords`，命中**最多**的类别胜出。
+   - **纯 ASCII 关键词**（如 `api`、`dev`）按 **单词边界** 匹配，避免 `dev` 误中 `developer`、`ai` 误中 `main`。
+   - **含中文 / 多字短语** 直接子串包含（CJK 没有词边界概念）。
+3. **未命中**：落到 `other`。
+
+修改 / 扩展词典后只需 `npx wrangler deploy`，无需迁移数据；前端 `public/app.js` 顶部的 `CATEGORIES` 同步更新（控制 chip 颜色与下拉选项），Worker 与前端要一起发版。
 
 ## ❓ 常见问题
 

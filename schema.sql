@@ -46,12 +46,14 @@ CREATE TABLE IF NOT EXISTS bookmarks (
   title       TEXT    NOT NULL DEFAULT '',
   description TEXT    NOT NULL DEFAULT '',
   icon_url    TEXT    NOT NULL DEFAULT '',
+  category    TEXT    NOT NULL DEFAULT '',     -- 自动分类 id（tech/ai/design/.../other），前端 src/category.js 词典同源
   created_at  TEXT    NOT NULL,
   updated_at  TEXT    NOT NULL,
   UNIQUE (user_id, url)
 );
 
 CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks (user_id, id);
+CREATE INDEX IF NOT EXISTS idx_bookmarks_category ON bookmarks (user_id, category);
 
 -- ⚠️ 从 v1 单用户库升级的说明：
 -- v1 的 bookmarks 表使用 UNIQUE(url) 全局唯一约束。应用启动时会自动 ALTER 补 user_id 列，

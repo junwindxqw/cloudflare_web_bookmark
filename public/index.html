@@ -163,6 +163,11 @@
         <div class="toolbar">
           <div class="toolbar-left">
             <span id="stats" class="stats"></span>
+            <select id="categorySelect" class="sort-select" aria-label="按分类筛选" title="按分类筛选"></select>
+            <button id="classifyAllBtn" class="btn btn-ghost btn-sm" type="button" title="为所有未分类的书签自动指定分类" aria-label="一键自动分类">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 1.9 4.6L19 9l-3.7 3.2.9 4.8L12 14.8 7.8 17l.9-4.8L5 9l5.1-1.4Z"/><path d="M19 17v3M5 17v3M3 19h4M17 19h4"/></svg>
+              <span class="desktop-only">一键自动分类</span>
+            </button>
           </div>
           <div class="toolbar-right">
             <select id="sortSelect" class="sort-select" aria-label="排序方式" title="排序方式">
@@ -229,8 +234,8 @@
             <circle cx="28" cy="28" r="14" fill="none" stroke="url(#empty-g2)" stroke-width="4" opacity="0.5"/>
             <path d="m38 38 8 8" stroke="url(#empty-g2)" stroke-width="4" stroke-linecap="round" opacity="0.5"/>
           </svg>
-          <h2>没有匹配的书签</h2>
-          <p>换个关键词试试，或清空搜索条件。</p>
+          <h2 id="noMatchTitle">没有匹配的书签</h2>
+          <p id="noMatchDesc">换个关键词试试，或清空搜索条件。</p>
           <button id="noMatchClearBtn" class="btn btn-ghost" type="button">清空搜索</button>
         </section>
       </main>
@@ -270,6 +275,11 @@
         <label class="field">
           <span class="field-label">描述</span>
           <textarea id="descInput" name="description" rows="3" maxlength="500" placeholder="留空则自动抓取网站描述"></textarea>
+        </label>
+        <label class="field">
+          <span class="field-label">分类</span>
+          <select id="categorySelectInForm" class="sort-select" name="category" aria-label="分类"></select>
+          <span class="field-hint">选「自动」会按域名/关键词重判，留给后端决定</span>
         </label>
         <p class="form-error hidden" id="formError" role="alert"></p>
         <div class="dialog-actions">

@@ -48,6 +48,25 @@ const ICON_EXTERNAL =
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const URL_RE = /^https?:\/\//i;
 
+/* ------------------------------ 分类字典 ------------------------------ */
+// 与 src/category.js 同源；部署 Worker 时随前端一起发版。
+// 任何 id/label/颜色变更需两端同步。
+const CATEGORIES = [
+  { id: 'tech', label: '技术', color: '#3b82f6' },
+  { id: 'ai', label: 'AI', color: '#a855f7' },
+  { id: 'design', label: '设计', color: '#ec4899' },
+  { id: 'tools', label: '工具', color: '#10b981' },
+  { id: 'news', label: '新闻', color: '#f59e0b' },
+  { id: 'life', label: '生活', color: '#f97316' },
+  { id: 'study', label: '学习', color: '#0ea5e9' },
+  { id: 'shopping', label: '购物', color: '#ef4444' },
+  { id: 'video', label: '视频', color: '#dc2626' },
+  { id: 'social', label: '社交', color: '#22c55e' },
+  { id: 'reading', label: '阅读', color: '#8b5cf6' },
+  { id: 'other', label: '其他', color: '#64748b' },
+];
+const CATEGORY_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
+
 function hostOf(url) {
   try {
     return new URL(url).hostname.replace(/^www\./, '');
@@ -191,12 +210,18 @@ const els = {
   grid: $('#grid'),
   emptyState: $('#emptyState'),
   noMatch: $('#noMatch'),
+  noMatchTitle: $('#noMatchTitle'),
+  noMatchDesc: $('#noMatchDesc'),
   loading: $('#loading'),
   stats: $('#stats'),
   userEmail: $('#userEmail'),
   userMenuBtn: $('#userMenuBtn'),
   sortSelect: $('#sortSelect'),
   viewBtns: document.querySelectorAll('.view-btn'),
+  // 分类
+  categorySelect: $('#categorySelect'),
+  classifyAllBtn: $('#classifyAllBtn'),
+  categorySelectInForm: $('#categorySelectInForm'),
   // 对话框
   dialog: $('#bookmarkDialog'),
   dialogTitle: $('#dialogTitle'),
@@ -252,6 +277,7 @@ const state = {
   confirmAction: null,
   view: loadPref('view', 'grid'),
   sort: loadPref('sort', 'created_desc'),
+  categoryFilter: loadPref('cat', 'all'), // 'all' 或分类 id
 };
 
 /* ------------------------------ 偏好持久化 ------------------------------ */
@@ -327,8 +353,30 @@ function enterApp(user) {
   els.mobileAdminBtn.classList.toggle('hidden', user.role !== 'admin');
   applyView();
   els.sortSelect.value = state.sort;
+  populateCategorySelect();
   els.loading.classList.remove('hidden');
   load();
+}
+
+/** 用词典填充「按分类筛选」下拉 + 「编辑对话框」下拉 */
+function populateCategorySelect() {
+  if (els.categorySelect) {
+    els.categorySelect.replaceChildren(
+      h('option', { value: 'all', text: '全部分类' }),
+      ...CATEGORIES.map((c) =>
+        h('option', { value: c.id, text: c.label }),
+      ),
+    );
+    els.categorySelect.value = state.categoryFilter;
+  }
+  if (els.categorySelectInForm) {
+    els.categorySelectInForm.replaceChildren(
+      h('option', { value: '', text: '自动（按域名/关键词）' }),
+      ...CATEGORIES.map((c) =>
+        h('option', { value: c.id, text: c.label }),
+      ),
+    );
+  }
 }
 
 function resetAuthForms() {
@@ -513,6 +561,10 @@ function cardNode(bm, query) {
   const cardMeta = h('div', { class: 'card-meta' });
   cardMeta.innerHTML = metaParts.join(' ');
 
+  // 分类标签：固定在卡片右上角，未分类则不渲染（空字符串视为未分类）
+  const catId = bm.category && CATEGORY_MAP[bm.category] ? bm.category : '';
+  const catLabel = catId ? CATEGORY_MAP[catId].label : '';
+
   // 复制链接反馈浮层
   const feedback = h('span', { class: 'copy-feedback', text: '已复制链接' });
 
@@ -523,6 +575,14 @@ function cardNode(bm, query) {
         cardTitle,
         cardMeta,
       ),
+      catId
+        ? h('span', {
+            class: 'card-category',
+            'data-category': catId,
+            title: `分类：${catLabel}`,
+            text: catLabel,
+          })
+        : null,
     ),
     h('div', { class: 'card-actions' },
       h('button', {
@@ -570,11 +630,14 @@ function cardNode(bm, query) {
 
 function render() {
   const q = els.searchInput.value.trim().toLowerCase();
-  const filtered = q
+  let filtered = q
     ? state.bookmarks.filter((b) =>
         `${b.title} ${b.description} ${hostOf(b.url)}`.toLowerCase().includes(q),
       )
     : state.bookmarks;
+  if (state.categoryFilter && state.categoryFilter !== 'all') {
+    filtered = filtered.filter((b) => (b.category || 'other') === state.categoryFilter);
+  }
   const list = applySort(filtered);
 
   els.grid.replaceChildren(...list.map((bm) => cardNode(bm, q)));
@@ -583,11 +646,34 @@ function render() {
   els.emptyState.classList.toggle('hidden', total > 0);
   els.noMatch.classList.toggle('hidden', !(total > 0 && filtered.length === 0));
 
+  // 根据当前激活的过滤条件，动态改写"无匹配"提示与清空按钮文案
+  if (total > 0 && filtered.length === 0) {
+    const catActive = state.categoryFilter && state.categoryFilter !== 'all';
+    if (q && catActive) {
+      els.noMatchTitle.textContent = '没有同时匹配的书签';
+      els.noMatchDesc.textContent = '当前关键词与分类下没有书签，试试清空其中一项。';
+      els.noMatchClearBtn.textContent = '清空搜索与分类';
+    } else if (catActive) {
+      const lbl = CATEGORY_MAP[state.categoryFilter]?.label || '';
+      els.noMatchTitle.textContent = `「${lbl}」下还没有书签`;
+      els.noMatchDesc.textContent = '换个分类试试，或清空当前筛选。';
+      els.noMatchClearBtn.textContent = '清空分类筛选';
+    } else {
+      els.noMatchTitle.textContent = '没有匹配的书签';
+      els.noMatchDesc.textContent = '换个关键词试试，或清空搜索条件。';
+      els.noMatchClearBtn.textContent = '清空搜索';
+    }
+  }
+
+  const catLabel = state.categoryFilter !== 'all' && CATEGORY_MAP[state.categoryFilter]
+    ? CATEGORY_MAP[state.categoryFilter].label
+    : '';
   if (total === 0) {
     els.stats.innerHTML = '';
-  } else if (q) {
+  } else if (q || catLabel) {
     els.stats.innerHTML =
-      `匹配 <strong>${filtered.length}</strong> / 共 <strong>${total}</strong> 个书签`;
+      `匹配 <strong>${filtered.length}</strong> / 共 <strong>${total}</strong> 个书签` +
+      (catLabel ? ` · 分类 <strong>${escapeHtml(catLabel)}</strong>` : '');
   } else {
     els.stats.innerHTML = `共 <strong>${total}</strong> 个书签`;
   }
@@ -635,6 +721,7 @@ function resetDialogState() {
   state.descDirty = false;
   state.lastFetchedUrl = '';
   setFormError(els.formError, '');
+  if (els.categorySelectInForm) els.categorySelectInForm.value = '';
 }
 
 function openAddDialog() {
@@ -658,6 +745,9 @@ function openEditDialog(bm) {
   els.urlInput.value = bm.url;
   els.titleInput.value = bm.title || '';
   els.descInput.value = bm.description || '';
+  if (els.categorySelectInForm) {
+    els.categorySelectInForm.value = bm.category || '';
+  }
   els.saveBtn.textContent = '保存修改';
   if (state.iconUrl) updateIconPreview();
   else els.iconPreviewWrap.classList.add('hidden');
@@ -723,6 +813,7 @@ els.form.addEventListener('submit', async (event) => {
     title: els.titleInput.value.trim(),
     description: els.descInput.value.trim(),
     icon_url: state.iconUrl,
+    category: els.categorySelectInForm ? els.categorySelectInForm.value : '',
     refetch: !state.iconUrl, // 没拿到图标时让服务端再尝试一次
   };
   els.saveBtn.disabled = true;
@@ -903,6 +994,14 @@ const commands = [
     run: () => openUsersDialog(),
   },
   {
+    id: 'classify_all',
+    title: '一键自动分类',
+    desc: '为所有未分类的书签自动指定分类',
+    icon: 'magic',
+    keys: 'c',
+    run: () => els.classifyAllBtn?.click(),
+  },
+  {
     id: 'logout',
     title: '退出登录',
     desc: '清除当前会话',
@@ -919,6 +1018,7 @@ const CMD_ICONS = {
   sort: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h9M3 18h5"/><path d="m17 8 4 4-4 4M21 12h-9"/></svg>',
   users: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 11h-6M19 8v6"/></svg>',
   logout: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>',
+  magic: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 1.9 4.6L19 9l-3.7 3.2.9 4.8L12 14.8 7.8 17l.9-4.8L5 9l5.1-1.4Z"/><path d="M5 3v3M19 17v3M3 5h4M17 19h4"/></svg>',
 };
 
 let cmdIndex = 0;
@@ -1107,7 +1207,25 @@ els.resetForm.addEventListener('submit', async (event) => {
 // 应用
 els.addBtn.addEventListener('click', openAddDialog);
 els.emptyAddBtn.addEventListener('click', openAddDialog);
-els.noMatchClearBtn.addEventListener('click', clearSearch);
+els.noMatchClearBtn.addEventListener('click', () => {
+  const q = els.searchInput.value.trim();
+  const catActive = state.categoryFilter && state.categoryFilter !== 'all';
+  if (q && catActive) {
+    els.searchInput.value = '';
+    updateSearchAffordance();
+    state.categoryFilter = 'all';
+    if (els.categorySelect) els.categorySelect.value = 'all';
+    savePref('cat', state.categoryFilter);
+  } else if (catActive) {
+    state.categoryFilter = 'all';
+    if (els.categorySelect) els.categorySelect.value = 'all';
+    savePref('cat', state.categoryFilter);
+  } else {
+    clearSearch();
+    return; // clearSearch already re-renders
+  }
+  render();
+});
 els.fetchBtn.addEventListener('click', fetchMetaForDialog);
 els.cancelBtn.addEventListener('click', () => els.dialog.close());
 els.titleInput.addEventListener('input', () => {
@@ -1133,6 +1251,42 @@ els.sortSelect.addEventListener('change', () => {
   state.sort = els.sortSelect.value;
   savePref('sort', state.sort);
   render();
+});
+
+els.categorySelect.addEventListener('change', () => {
+  state.categoryFilter = els.categorySelect.value;
+  savePref('cat', state.categoryFilter);
+  render();
+});
+
+els.classifyAllBtn.addEventListener('click', () => {
+  const todo = state.bookmarks.filter((b) => !b.category).length;
+  const isAdmin = state.currentUser?.role === 'admin';
+  const text = todo > 0
+    ? `将自动为 ${todo} 个未分类书签指定分类，已分类的书签不会被覆盖。是否继续？`
+    : isAdmin
+      ? '当前没有未分类的书签。作为管理员，是否全部重判？（已分类的书签也会被覆盖）'
+      : '当前没有未分类的书签。';
+  if (todo === 0 && !isAdmin) {
+    toast('当前没有未分类的书签', 'info');
+    return;
+  }
+  confirmAction(text, async () => {
+    const force = todo === 0 && isAdmin;
+    try {
+      els.classifyAllBtn.disabled = true;
+      const { updated } = await api('/api/bookmarks/classify-all', {
+        method: 'POST',
+        body: JSON.stringify({ force }),
+      });
+      toast(updated > 0 ? `已自动分类 ${updated} 个书签` : '没有需要更新的书签', 'success');
+      await load();
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      els.classifyAllBtn.disabled = false;
+    }
+  });
 });
 
 for (const btn of els.viewBtns) {
@@ -1250,6 +1404,13 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'n' || e.key === 'N') {
     e.preventDefault();
     openAddDialog();
+    return;
+  }
+
+  // c → 一键自动分类
+  if (e.key === 'c' || e.key === 'C') {
+    e.preventDefault();
+    els.classifyAllBtn?.click();
     return;
   }
 

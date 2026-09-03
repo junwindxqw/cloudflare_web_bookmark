@@ -16,8 +16,21 @@
 import { ApiError, ok, fail, readJsonObject, cleanStr } from './util.js';
 import { requireUser, handleAuthApi, handleAdminApi } from './auth.js';
 import { fetchMetadata, tryFetchMetadata, normalizeUrlInput } from './metadata.js';
+import { classifyBookmark } from './category.js';
 
-const LIMITS = { title: 300, description: 1000, icon_url: 2048 };
+const LIMITS = { title: 300, description: 1000, icon_url: 2048, category: 32 };
+
+/** 服务端分类白名单：限制 body.category 只能取已知 id；非白名单视为"自动" */
+const VALID_CATEGORY_IDS = new Set([
+  'tech', 'ai', 'design', 'tools', 'news', 'life', 'study',
+  'shopping', 'video', 'social', 'reading', 'other',
+]);
+
+/** 清洗用户提交的 category：白名单外的值视为空（→ 后端自动分类） */
+function sanitizeCategory(value) {
+  const s = cleanStr(value, LIMITS.category);
+  return VALID_CATEGORY_IDS.has(s) ? s : '';
+}
 
 // 建表语句全部幂等；老库（v1 单用户版）通过 ALTER 补 user_id 列自动迁移
 const SCHEMA_STATEMENTS = [
@@ -54,11 +67,13 @@ const SCHEMA_STATEMENTS = [
     title       TEXT    NOT NULL DEFAULT '',
     description TEXT    NOT NULL DEFAULT '',
     icon_url    TEXT    NOT NULL DEFAULT '',
+    category    TEXT    NOT NULL DEFAULT '',
     created_at  TEXT    NOT NULL,
     updated_at  TEXT    NOT NULL,
     UNIQUE (user_id, url)
   )`,
   'CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks (user_id, id)',
+  'CREATE INDEX IF NOT EXISTS idx_bookmarks_category ON bookmarks (user_id, category)',
   'CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)',
 ];
 
@@ -72,6 +87,12 @@ function ensureSchema(env) {
       // v1 单用户库迁移：补 user_id 列（已存在时忽略报错）
       try {
         await env.DB.prepare('ALTER TABLE bookmarks ADD COLUMN user_id INTEGER NOT NULL DEFAULT 0').run();
+      } catch {
+        /* 列已存在 */
+      }
+      // 自动分类：补 category 列（已存在时忽略报错）
+      try {
+        await env.DB.prepare("ALTER TABLE bookmarks ADD COLUMN category TEXT NOT NULL DEFAULT ''").run();
       } catch {
         /* 列已存在 */
       }
@@ -92,6 +113,7 @@ function toBookmark(row) {
     title: row.title || '',
     description: row.description || '',
     icon_url: row.icon_url || '',
+    category: row.category || '',
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -117,21 +139,25 @@ async function createBookmark(request, env, user) {
   const inputTitle = cleanStr(body.title, LIMITS.title);
   const inputDesc = cleanStr(body.description, LIMITS.description);
   const inputIcon = cleanStr(body.icon_url, LIMITS.icon_url);
+  const inputCategory = sanitizeCategory(body.category);
 
   let meta = null;
   if (!inputTitle || !inputDesc || !inputIcon) meta = await tryFetchMetadata(url.href);
 
   const now = new Date().toISOString();
+  const host = url.hostname.replace(/^www\./, '');
+  const resolvedTitle = inputTitle || meta?.title || host;
   const record = {
     url: url.href,
-    title: inputTitle || meta?.title || url.hostname.replace(/^www\./, ''),
+    title: resolvedTitle,
     description: inputDesc || meta?.description || '',
     icon_url: inputIcon || meta?.icon_url || '',
+    category: inputCategory || classifyBookmark({ url: url.href, title: resolvedTitle, description: inputDesc || meta?.description || '' }),
   };
   const res = await env.DB.prepare(
-    'INSERT INTO bookmarks (user_id, url, title, description, icon_url, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO bookmarks (user_id, url, title, description, icon_url, category, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
   )
-    .bind(user.id, record.url, record.title, record.description, record.icon_url, now, now)
+    .bind(user.id, record.url, record.title, record.description, record.icon_url, record.category, now, now)
     .run();
   return { id: res.meta.last_row_id, ...record, created_at: now, updated_at: now };
 }
@@ -182,17 +208,29 @@ async function updateBookmark(request, env, user, id) {
     (body.icon_url !== undefined ? cleanStr(body.icon_url, LIMITS.icon_url) : row.icon_url) || meta?.icon_url || '';
   if (meta?.title && (!title || title === host)) title = meta.title;
 
+  // 分类：显式提交非空 → 用提交值；空串 → 视为"自动"，按当前 url/title/desc 重判；未提交 → 保留原值
+  const finalTitle = title || host;
+  let category;
+  if (body.category !== undefined) {
+    const submitted = sanitizeCategory(body.category);
+    if (submitted) category = submitted;
+    else category = classifyBookmark({ url, title: finalTitle, description });
+  } else {
+    category = row.category || classifyBookmark({ url, title: finalTitle, description });
+  }
+
   const record = {
     url,
-    title: title || host,
+    title: finalTitle,
     description,
     icon_url: iconUrl,
+    category,
   };
   const now = new Date().toISOString();
   await env.DB.prepare(
-    'UPDATE bookmarks SET url = ?, title = ?, description = ?, icon_url = ?, updated_at = ? WHERE id = ?',
+    'UPDATE bookmarks SET url = ?, title = ?, description = ?, icon_url = ?, category = ?, updated_at = ? WHERE id = ?',
   )
-    .bind(record.url, record.title, record.description, record.icon_url, now, id)
+    .bind(record.url, record.title, record.description, record.icon_url, record.category, now, id)
     .run();
   return { id, ...record, created_at: row.created_at, updated_at: now };
 }
@@ -202,6 +240,44 @@ async function deleteBookmark(env, user, id) {
   const res = await env.DB.prepare('DELETE FROM bookmarks WHERE id = ?').bind(id).run();
   if (!res.meta.changes) throw new ApiError('书签不存在', 404);
   return { id };
+}
+
+/**
+ * 一键自动分类：把当前用户尚未分类（category=''）的书签按词典重判并写回。
+ * 管理员可显式传 body.force=true 覆盖已有分类；普通用户无视 force，避免越权覆盖。
+ */
+async function classifyAllBookmarks(request, env, user) {
+  let body = {};
+  try {
+    body = await readJsonObject(request);
+  } catch {
+    /* body 可选，空对象也合法 */
+  }
+  const force = body?.force === true && user.role === 'admin';
+
+  const where = force
+    ? 'SELECT id, url, title, description, category FROM bookmarks WHERE user_id = ?'
+    : "SELECT id, url, title, description, category FROM bookmarks WHERE user_id = ? AND (category = '' OR category IS NULL)";
+  const { results } = await env.DB.prepare(where).bind(user.id).all();
+  if (!results.length) return { updated: 0, results: [] };
+
+  const statements = [];
+  const changes = [];
+  for (const row of results) {
+    const next = classifyBookmark({ url: row.url, title: row.title, description: row.description });
+    if (!force && next === (row.category || '')) continue;
+    statements.push(
+      env.DB.prepare('UPDATE bookmarks SET category = ? WHERE id = ? AND user_id = ?').bind(next, row.id, user.id),
+    );
+    changes.push({ id: row.id, category: next });
+  }
+
+  // D1 batch 一次最多 50 条；超过则分批
+  for (let i = 0; i < statements.length; i += 50) {
+    const slice = statements.slice(i, i + 50);
+    if (slice.length) await env.DB.batch(slice);
+  }
+  return { updated: changes.length, results: changes };
 }
 
 /* ------------------------------- 路由 ------------------------------- */
@@ -223,6 +299,9 @@ async function route(request, env, url) {
   }
   if (pathname === '/api/bookmarks' && method === 'POST') {
     return ok(await createBookmark(request, env, user));
+  }
+  if (pathname === '/api/bookmarks/classify-all' && method === 'POST') {
+    return ok(await classifyAllBookmarks(request, env, user));
   }
 
   const match = pathname.match(/^\/api\/bookmarks\/(\d+)$/);

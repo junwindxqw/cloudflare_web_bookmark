@@ -671,6 +671,37 @@ main {
 
 .card-meta .dot { opacity: 0.5; }
 
+/* 分类标签：固定在 .card-head 右上角（与右下角的 actions 错开） */
+.card-category {
+  flex: none;
+  align-self: flex-start;
+  margin-left: auto;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.5;
+  background: var(--surface-2);
+  color: var(--text-2);
+  white-space: nowrap;
+  user-select: none;
+  cursor: default;
+  transition: filter 0.15s var(--ease);
+}
+.card-category:hover { filter: brightness(0.97); }
+.card-category[data-category="tech"] { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; }
+.card-category[data-category="ai"] { background: rgba(168, 85, 247, 0.14); color: #6d28d9; }
+.card-category[data-category="design"] { background: rgba(236, 72, 153, 0.14); color: #be185d; }
+.card-category[data-category="tools"] { background: rgba(16, 185, 129, 0.14); color: #065f46; }
+.card-category[data-category="news"] { background: rgba(245, 158, 11, 0.16); color: #92400e; }
+.card-category[data-category="life"] { background: rgba(249, 115, 22, 0.14); color: #9a3412; }
+.card-category[data-category="study"] { background: rgba(14, 165, 233, 0.14); color: #0369a1; }
+.card-category[data-category="shopping"] { background: rgba(239, 68, 68, 0.14); color: #b91c1c; }
+.card-category[data-category="video"] { background: rgba(220, 38, 38, 0.14); color: #991b1b; }
+.card-category[data-category="social"] { background: rgba(34, 197, 94, 0.14); color: #166534; }
+.card-category[data-category="reading"] { background: rgba(139, 92, 246, 0.14); color: #6d28d9; }
+.card-category[data-category="other"] { background: var(--surface-2); color: var(--text-3); }
+
 .card-actions {
   position: absolute;
   top: 10px;
@@ -744,6 +775,18 @@ mark.search-hit {
     background: linear-gradient(transparent 60%, #d4a72c 60%);
     color: #1c2230;
   }
+  .card-category[data-category="tech"] { background: rgba(59, 130, 246, 0.22); color: #93c5fd; }
+  .card-category[data-category="ai"] { background: rgba(168, 85, 247, 0.24); color: #d8b4fe; }
+  .card-category[data-category="design"] { background: rgba(236, 72, 153, 0.22); color: #f9a8d4; }
+  .card-category[data-category="tools"] { background: rgba(16, 185, 129, 0.22); color: #6ee7b7; }
+  .card-category[data-category="news"] { background: rgba(245, 158, 11, 0.24); color: #fcd34d; }
+  .card-category[data-category="life"] { background: rgba(249, 115, 22, 0.22); color: #fdba74; }
+  .card-category[data-category="study"] { background: rgba(14, 165, 233, 0.22); color: #7dd3fc; }
+  .card-category[data-category="shopping"] { background: rgba(239, 68, 68, 0.22); color: #fca5a5; }
+  .card-category[data-category="video"] { background: rgba(220, 38, 38, 0.22); color: #fca5a5; }
+  .card-category[data-category="social"] { background: rgba(34, 197, 94, 0.22); color: #86efac; }
+  .card-category[data-category="reading"] { background: rgba(139, 92, 246, 0.24); color: #c4b5fd; }
+  .card-category[data-category="other"] { background: var(--surface-2); color: var(--text-3); }
 }
 
 /* ------------------------------ 空状态 / 加载 ------------------------------ */
@@ -1342,6 +1385,18 @@ dialog.dialog[open] {
   .grid {
     grid-template-columns: 1fr;
   }
+
+  /* 移动端：分类筛选 + 一键自动分类贴在一起、占满一行；分类 chip 只显示圆点 */
+  .card-category {
+    padding: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    font-size: 0;
+    line-height: 0;
+    text-indent: -9999px;
+    overflow: hidden;
+  }
 }
 
 .mobile-only { display: none; }
@@ -1450,6 +1505,12 @@ dialog.dialog[open] {
 .btn-send {
   flex: none;
   min-width: 110px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 8px;
 }
 
 .code-input {
