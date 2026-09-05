@@ -522,6 +522,88 @@ html, body { scroll-behavior: smooth; }
   box-shadow: 0 0 0 3px var(--primary-weak);
 }
 
+/* ------------------------------ 分类筛选 chip 行 ------------------------------ */
+
+.cat-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.cat-chips::-webkit-scrollbar { display: none; }
+
+.cat-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease),
+    border-color 0.15s var(--ease), box-shadow 0.15s var(--ease),
+    transform 0.15s var(--ease);
+}
+
+.cat-chip:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.cat-chip:focus-visible {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-weak);
+}
+
+.cat-chip-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cat, var(--primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cat, var(--primary)) 18%, transparent);
+}
+
+.cat-chip-count {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* 选中态：以分类色染色（「全部」chip 未设 --cat 时回落到主题色） */
+.cat-chip.active {
+  background: color-mix(in srgb, var(--cat, var(--primary)) 13%, var(--surface));
+  border-color: color-mix(in srgb, var(--cat, var(--primary)) 45%, var(--border));
+  color: var(--text);
+  font-weight: 600;
+}
+
+.cat-chip.active .cat-chip-count {
+  background: color-mix(in srgb, var(--cat, var(--primary)) 22%, var(--surface));
+  border-color: transparent;
+  color: var(--text);
+}
+
 /* ------------------------------ 主区域 ------------------------------ */
 
 main {
@@ -566,10 +648,25 @@ main {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-xs);
+  overflow: hidden;
   transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease),
     border-color 0.2s var(--ease), background 0.2s var(--ease);
   animation: card-in 0.32s var(--ease) backwards;
 }
+
+/* 顶部分类色条：颜色由卡片内联的 --cat 提供（未分类不设置，保持透明） */
+.card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 3px;
+  background: var(--cat, transparent);
+  opacity: 0.4;
+  transition: opacity 0.2s var(--ease);
+  pointer-events: none;
+}
+
+.card:hover::before { opacity: 0.95; }
 
 @keyframes card-in {
   from { opacity: 0; transform: translateY(6px); }
@@ -671,13 +768,15 @@ main {
 
 .card-meta .dot { opacity: 0.5; }
 
-/* 分类标签：固定在 .card-head 右上角（与右下角的 actions 错开） */
+/* 分类标签：固定在 .card-head 右上角（与右下角的 actions 错开），点击可按该分类筛选 */
 .card-category {
   flex: none;
   align-self: flex-start;
   margin-left: auto;
   padding: 2px 9px;
+  border: none;
   border-radius: 999px;
+  font: inherit;
   font-size: 11.5px;
   font-weight: 500;
   line-height: 1.5;
@@ -685,21 +784,31 @@ main {
   color: var(--text-2);
   white-space: nowrap;
   user-select: none;
-  cursor: default;
-  transition: filter 0.15s var(--ease);
+  cursor: pointer;
+  transition: filter 0.15s var(--ease), transform 0.15s var(--ease);
 }
-.card-category:hover { filter: brightness(0.97); }
+.card-category:hover { filter: brightness(0.94); transform: translateY(-1px); }
+.card-category:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cat, var(--primary)) 30%, transparent);
+}
 .card-category[data-category="tech"] { background: rgba(59, 130, 246, 0.12); color: #1d4ed8; }
 .card-category[data-category="ai"] { background: rgba(168, 85, 247, 0.14); color: #6d28d9; }
+.card-category[data-category="ai-chat"] { background: rgba(99, 102, 241, 0.13); color: #4338ca; }
+.card-category[data-category="ai-image"] { background: rgba(217, 70, 239, 0.12); color: #a21caf; }
+.card-category[data-category="ai-dev"] { background: rgba(20, 184, 166, 0.14); color: #0f766e; }
 .card-category[data-category="design"] { background: rgba(236, 72, 153, 0.14); color: #be185d; }
 .card-category[data-category="tools"] { background: rgba(16, 185, 129, 0.14); color: #065f46; }
 .card-category[data-category="news"] { background: rgba(245, 158, 11, 0.16); color: #92400e; }
+.card-category[data-category="finance"] { background: rgba(234, 179, 8, 0.16); color: #854d0e; }
 .card-category[data-category="life"] { background: rgba(249, 115, 22, 0.14); color: #9a3412; }
 .card-category[data-category="study"] { background: rgba(14, 165, 233, 0.14); color: #0369a1; }
 .card-category[data-category="shopping"] { background: rgba(239, 68, 68, 0.14); color: #b91c1c; }
 .card-category[data-category="video"] { background: rgba(220, 38, 38, 0.14); color: #991b1b; }
 .card-category[data-category="social"] { background: rgba(34, 197, 94, 0.14); color: #166534; }
 .card-category[data-category="reading"] { background: rgba(139, 92, 246, 0.14); color: #6d28d9; }
+.card-category[data-category="career"] { background: rgba(132, 204, 22, 0.16); color: #3f6212; }
+.card-category[data-category="cloud"] { background: rgba(6, 182, 212, 0.13); color: #0e7490; }
 .card-category[data-category="other"] { background: var(--surface-2); color: var(--text-3); }
 
 .card-actions {
@@ -777,15 +886,21 @@ mark.search-hit {
   }
   .card-category[data-category="tech"] { background: rgba(59, 130, 246, 0.22); color: #93c5fd; }
   .card-category[data-category="ai"] { background: rgba(168, 85, 247, 0.24); color: #d8b4fe; }
+  .card-category[data-category="ai-chat"] { background: rgba(99, 102, 241, 0.26); color: #a5b4fc; }
+  .card-category[data-category="ai-image"] { background: rgba(217, 70, 239, 0.24); color: #f0abfc; }
+  .card-category[data-category="ai-dev"] { background: rgba(20, 184, 166, 0.24); color: #5eead4; }
   .card-category[data-category="design"] { background: rgba(236, 72, 153, 0.22); color: #f9a8d4; }
   .card-category[data-category="tools"] { background: rgba(16, 185, 129, 0.22); color: #6ee7b7; }
   .card-category[data-category="news"] { background: rgba(245, 158, 11, 0.24); color: #fcd34d; }
+  .card-category[data-category="finance"] { background: rgba(234, 179, 8, 0.26); color: #fde047; }
   .card-category[data-category="life"] { background: rgba(249, 115, 22, 0.22); color: #fdba74; }
   .card-category[data-category="study"] { background: rgba(14, 165, 233, 0.22); color: #7dd3fc; }
   .card-category[data-category="shopping"] { background: rgba(239, 68, 68, 0.22); color: #fca5a5; }
   .card-category[data-category="video"] { background: rgba(220, 38, 38, 0.22); color: #fca5a5; }
   .card-category[data-category="social"] { background: rgba(34, 197, 94, 0.22); color: #86efac; }
   .card-category[data-category="reading"] { background: rgba(139, 92, 246, 0.24); color: #c4b5fd; }
+  .card-category[data-category="career"] { background: rgba(132, 204, 22, 0.24); color: #bef264; }
+  .card-category[data-category="cloud"] { background: rgba(6, 182, 212, 0.24); color: #67e8f9; }
   .card-category[data-category="other"] { background: var(--surface-2); color: var(--text-3); }
 }
 
@@ -1380,6 +1495,13 @@ dialog.dialog[open] {
 
   .toolbar {
     margin-top: 16px;
+  }
+
+  /* 分类 chip 行单行横滑，两端渐隐提示可滑动 */
+  .cat-chips {
+    margin-bottom: 10px;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 14px, #000 calc(100% - 14px), transparent);
   }
 
   .grid {

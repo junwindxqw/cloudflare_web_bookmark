@@ -20,10 +20,11 @@ import { classifyBookmark } from './category.js';
 
 const LIMITS = { title: 300, description: 1000, icon_url: 2048, category: 32 };
 
-/** 服务端分类白名单：限制 body.category 只能取已知 id；非白名单视为"自动" */
+/** 服务端分类白名单：与 src/category.js 的 CATEGORIES 同步；非白名单视为"自动" */
 const VALID_CATEGORY_IDS = new Set([
-  'tech', 'ai', 'design', 'tools', 'news', 'life', 'study',
-  'shopping', 'video', 'social', 'reading', 'other',
+  'tech', 'ai', 'ai-chat', 'ai-image', 'ai-dev',
+  'design', 'tools', 'news', 'finance', 'life', 'study',
+  'shopping', 'video', 'social', 'reading', 'career', 'cloud', 'other',
 ]);
 
 /** 清洗用户提交的 category：白名单外的值视为空（→ 后端自动分类） */

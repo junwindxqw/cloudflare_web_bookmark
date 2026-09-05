@@ -163,7 +163,6 @@
         <div class="toolbar">
           <div class="toolbar-left">
             <span id="stats" class="stats"></span>
-            <select id="categorySelect" class="sort-select" aria-label="按分类筛选" title="按分类筛选"></select>
             <button id="classifyAllBtn" class="btn btn-ghost btn-sm" type="button" title="为所有未分类的书签自动指定分类" aria-label="一键自动分类">
               <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 1.9 4.6L19 9l-3.7 3.2.9 4.8L12 14.8 7.8 17l.9-4.8L5 9l5.1-1.4Z"/><path d="M19 17v3M5 17v3M3 19h4M17 19h4"/></svg>
               <span class="desktop-only">一键自动分类</span>
@@ -187,6 +186,9 @@
             </div>
           </div>
         </div>
+
+        <!-- 分类筛选 chip 行：JS 按词典 + 当前书签计数渲染 -->
+        <nav id="catChips" class="cat-chips" aria-label="按分类筛选"></nav>
 
         <section id="loading" class="loading" aria-live="polite">
           <div class="spinner" aria-hidden="true"></div>

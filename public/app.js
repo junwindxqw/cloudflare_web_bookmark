@@ -49,20 +49,26 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const URL_RE = /^https?:\/\//i;
 
 /* ------------------------------ 分类字典 ------------------------------ */
-// 与 src/category.js 同源；部署 Worker 时随前端一起发版。
+// 与 src/category.js 同源（仅 id/label/color）；部署 Worker 时随前端一起发版。
 // 任何 id/label/颜色变更需两端同步。
 const CATEGORIES = [
   { id: 'tech', label: '技术', color: '#3b82f6' },
   { id: 'ai', label: 'AI', color: '#a855f7' },
+  { id: 'ai-chat', label: 'AI 对话', color: '#6366f1' },
+  { id: 'ai-image', label: 'AI 创作', color: '#d946ef' },
+  { id: 'ai-dev', label: 'AI 开发', color: '#14b8a6' },
   { id: 'design', label: '设计', color: '#ec4899' },
   { id: 'tools', label: '工具', color: '#10b981' },
   { id: 'news', label: '新闻', color: '#f59e0b' },
+  { id: 'finance', label: '财经', color: '#eab308' },
   { id: 'life', label: '生活', color: '#f97316' },
   { id: 'study', label: '学习', color: '#0ea5e9' },
   { id: 'shopping', label: '购物', color: '#ef4444' },
   { id: 'video', label: '视频', color: '#dc2626' },
   { id: 'social', label: '社交', color: '#22c55e' },
   { id: 'reading', label: '阅读', color: '#8b5cf6' },
+  { id: 'career', label: '求职', color: '#84cc16' },
+  { id: 'cloud', label: '云服务', color: '#06b6d4' },
   { id: 'other', label: '其他', color: '#64748b' },
 ];
 const CATEGORY_MAP = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
@@ -218,8 +224,8 @@ const els = {
   userMenuBtn: $('#userMenuBtn'),
   sortSelect: $('#sortSelect'),
   viewBtns: document.querySelectorAll('.view-btn'),
-  // 分类
-  categorySelect: $('#categorySelect'),
+  // 分类（筛选 chip 行 + 编辑对话框下拉）
+  catChips: $('#catChips'),
   classifyAllBtn: $('#classifyAllBtn'),
   categorySelectInForm: $('#categorySelectInForm'),
   // 对话框
@@ -353,22 +359,14 @@ function enterApp(user) {
   els.mobileAdminBtn.classList.toggle('hidden', user.role !== 'admin');
   applyView();
   els.sortSelect.value = state.sort;
-  populateCategorySelect();
+  populateFormCategorySelect();
+  chipsSig = ''; // 强制重建 chip 行（跨账号切换时计数与选中态都会变）
   els.loading.classList.remove('hidden');
   load();
 }
 
-/** 用词典填充「按分类筛选」下拉 + 「编辑对话框」下拉 */
-function populateCategorySelect() {
-  if (els.categorySelect) {
-    els.categorySelect.replaceChildren(
-      h('option', { value: 'all', text: '全部分类' }),
-      ...CATEGORIES.map((c) =>
-        h('option', { value: c.id, text: c.label }),
-      ),
-    );
-    els.categorySelect.value = state.categoryFilter;
-  }
+/** 用词典填充「编辑对话框」的分类下拉（筛选走顶部的分类 chip 行） */
+function populateFormCategorySelect() {
   if (els.categorySelectInForm) {
     els.categorySelectInForm.replaceChildren(
       h('option', { value: '', text: '自动（按域名/关键词）' }),
@@ -377,6 +375,53 @@ function populateCategorySelect() {
       ),
     );
   }
+}
+
+/** 切换分类筛选：chip / 卡片徽标共用入口，随 render() 同步高亮 */
+function setCategoryFilter(id) {
+  state.categoryFilter = id;
+  savePref('cat', id);
+  render();
+}
+
+/**
+ * 渲染分类筛选 chip 行：「全部」+ 有书签的分类（当前选中的空分类也保留，便于取消）。
+ * 带签名缓存，搜索等不改变计数的重渲染不会重建 DOM、不打断焦点。
+ */
+let chipsSig = '';
+function renderCategoryChips() {
+  if (!els.catChips) return;
+  const counts = {};
+  for (const b of state.bookmarks) {
+    const id = b.category && CATEGORY_MAP[b.category] ? b.category : 'other';
+    counts[id] = (counts[id] || 0) + 1;
+  }
+  const sig = state.categoryFilter + '|' + CATEGORIES.map((c) => counts[c.id] || 0).join(',');
+  if (sig === chipsSig) return;
+  chipsSig = sig;
+
+  const chipOf = (c, n, active) =>
+    h('button', {
+      class: 'cat-chip' + (active ? ' active' : ''),
+      type: 'button',
+      'data-cat': c.id,
+      'aria-pressed': active,
+      style: c.id === 'all' ? '' : `--cat:${c.color}`,
+      title: c.id === 'all' ? '显示全部分类' : `只看「${c.label}」分类`,
+      onclick: () => setCategoryFilter(c.id),
+    },
+      c.id === 'all' ? null : h('span', { class: 'cat-chip-dot', 'aria-hidden': 'true' }),
+      c.label,
+      h('span', { class: 'cat-chip-count', text: String(n) }),
+    );
+
+  const chips = [chipOf({ id: 'all', label: '全部' }, state.bookmarks.length, state.categoryFilter === 'all')];
+  for (const c of CATEGORIES) {
+    const n = counts[c.id] || 0;
+    if (n === 0 && state.categoryFilter !== c.id) continue;
+    chips.push(chipOf(c, n, state.categoryFilter === c.id));
+  }
+  els.catChips.replaceChildren(...chips);
 }
 
 function resetAuthForms() {
@@ -561,7 +606,7 @@ function cardNode(bm, query) {
   const cardMeta = h('div', { class: 'card-meta' });
   cardMeta.innerHTML = metaParts.join(' ');
 
-  // 分类标签：固定在卡片右上角，未分类则不渲染（空字符串视为未分类）
+  // 分类标签：固定在卡片右上角，点击可按该分类筛选；未分类则不渲染（空字符串视为未分类）
   const catId = bm.category && CATEGORY_MAP[bm.category] ? bm.category : '';
   const catLabel = catId ? CATEGORY_MAP[catId].label : '';
 
@@ -576,10 +621,13 @@ function cardNode(bm, query) {
         cardMeta,
       ),
       catId
-        ? h('span', {
+        ? h('button', {
             class: 'card-category',
+            type: 'button',
             'data-category': catId,
-            title: `分类：${catLabel}`,
+            title: `分类：${catLabel}，点击筛选`,
+            'aria-label': `筛选「${catLabel}」分类`,
+            onclick: (ev) => { ev.stopPropagation(); setCategoryFilter(catId); },
             text: catLabel,
           })
         : null,
@@ -625,6 +673,8 @@ function cardNode(bm, query) {
     desc.innerHTML = highlight(bm.description, query);
     card.append(desc);
   }
+  // 顶部分类色条（CSS 读取 --cat；未分类不设置则透明）
+  if (catId) card.style.setProperty('--cat', CATEGORY_MAP[catId].color);
   return card;
 }
 
@@ -641,6 +691,7 @@ function render() {
   const list = applySort(filtered);
 
   els.grid.replaceChildren(...list.map((bm) => cardNode(bm, q)));
+  renderCategoryChips();
 
   const total = state.bookmarks.length;
   els.emptyState.classList.toggle('hidden', total > 0);
@@ -1213,18 +1264,12 @@ els.noMatchClearBtn.addEventListener('click', () => {
   if (q && catActive) {
     els.searchInput.value = '';
     updateSearchAffordance();
-    state.categoryFilter = 'all';
-    if (els.categorySelect) els.categorySelect.value = 'all';
-    savePref('cat', state.categoryFilter);
+    setCategoryFilter('all');
   } else if (catActive) {
-    state.categoryFilter = 'all';
-    if (els.categorySelect) els.categorySelect.value = 'all';
-    savePref('cat', state.categoryFilter);
+    setCategoryFilter('all');
   } else {
     clearSearch();
-    return; // clearSearch already re-renders
   }
-  render();
 });
 els.fetchBtn.addEventListener('click', fetchMetaForDialog);
 els.cancelBtn.addEventListener('click', () => els.dialog.close());
@@ -1250,12 +1295,6 @@ els.searchClear.addEventListener('click', clearSearch);
 els.sortSelect.addEventListener('change', () => {
   state.sort = els.sortSelect.value;
   savePref('sort', state.sort);
-  render();
-});
-
-els.categorySelect.addEventListener('change', () => {
-  state.categoryFilter = els.categorySelect.value;
-  savePref('cat', state.categoryFilter);
   render();
 });
 
